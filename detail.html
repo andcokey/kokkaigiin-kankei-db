@@ -1,3 +1,4 @@
+<meta charset="utf-8" />
 <title>議員関係DB 詳細</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
@@ -208,14 +209,19 @@
 
 <div class="app">
   <div class="topbar">
-    <a class="brand" href="index.html">
+    <a class="brand" href="index.html" id="brandLink">
       <div class="mark">議</div>
       <div class="name">議員関係DB</div>
     </a>
-    <div class="crumb"><a href="index.html">全体サマリ</a> &nbsp;›&nbsp; <b id="crumbName">議員詳細</b></div>
+    <div class="crumb"><a href="index.html" id="crumbSummaryLink">全体サマリ</a> &nbsp;›&nbsp; <b id="crumbName">議員詳細</b></div>
   </div>
 
   <div id="loadingScreen" class="loading-state">読み込み中…</div>
+  <div id="pickScreen" style="display:none; max-width: 640px; margin: 40px auto;">
+    <h2 style="margin-bottom:6px; font-size:18px; font-weight:500;">議員を選択してください</h2>
+    <div class="sort-hint" style="margin-bottom:16px;">個別ページがあるのは「関係マスタ」に登録された議員のみです</div>
+    <div class="nav-list" id="pickList" style="max-height:none;"></div>
+  </div>
   <div id="appRoot" class="layout" style="display:none;">
     <div class="sidebar">
       <div class="label">議員一覧（関係マスタ登録者）</div>
@@ -537,8 +543,34 @@ document.getElementById('addSubmit').addEventListener('click', async function(){
   }
 });
 
+function goToSummary(ev){
+  if (window.parent !== window) {
+    ev.preventDefault();
+    window.parent.postMessage({ type: 'open-summary' }, '*');
+  }
+}
+document.getElementById('brandLink').addEventListener('click', goToSummary);
+document.getElementById('crumbSummaryLink').addEventListener('click', goToSummary);
+
+async function renderPicker(){
+  try {
+    var relations = await GasClient.call('listRelations');
+    relations.sort(function(a,b){ return a.name.localeCompare(b.name, 'ja'); });
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('pickScreen').style.display = 'block';
+    document.getElementById('pickList').innerHTML = relations.map(function(r){
+      return '<a class="nav-item" href="detail.html?id=' + encodeURIComponent(r.legislatorId) + '">' +
+        '<span class="avatar">' + AVATAR_ICON + '</span>' +
+        '<span class="ntext"><span class="n1">' + r.name + '</span><span class="n2">' + (r.party||'') + '・' + (r.house||'') + '</span></span>' +
+        '</a>';
+    }).join('');
+  } catch (err) {
+    document.getElementById('loadingScreen').textContent = '読み込みに失敗しました: ' + err.message;
+  }
+}
+
 if (!legislatorId) {
-  document.getElementById('loadingScreen').textContent = 'URLに ?id=<legislator_id> を指定してください（例: detail.html?id=L001）';
+  renderPicker();
 } else {
   boot();
 }

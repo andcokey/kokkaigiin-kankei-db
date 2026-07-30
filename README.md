@@ -2,9 +2,10 @@
 
 GMOグループと国会議員の関係（ドメイン/サーバー/SSL情報・パーティー券購入・贈答・面談履歴）を記録・可視化するツールです。
 
-- 公開サイト（GitHub Pages）: セットアップ後にこの節を更新します
+- 公開サイト（GitHub Pages）: https://andcokey.github.io/kokkaigiin-kankei-db/
 - データ本体: Notion（4データベース: 議員マスタ（全体）712件／関係マスタ（重点対象）41件／接触履歴／データ品質メモ）
 - 構成: GitHub Pages（フロント）→ GAS（プロキシ）→ Notion（データ本体）
+- フロントは `index.html` をシェルとして「全体サマリ」「個別ページ」をタブで切り替える構成（実体は `summary.html` / `detail.html` をiframeで表示）
 
 このリポジトリにはコードのみを置き、実データ・トークンはコミットしません。
 
@@ -36,11 +37,14 @@ GMOグループと国会議員の関係（ドメイン/サーバー/SSL情報・
 ## ディレクトリ構成
 
 ```
-index.html       … 全体サマリ（議員数・パーティー券購入額・ドメイン/サーバー/SSLシェア）
-detail.html      … 個別議員ページ（?id=<legislator_id> で指定。例: detail.html?id=L001）
+index.html       … シェル（タブバー＋iframe。公開URLはここを開く）
+summary.html     … 全体サマリの実体（議員数・パーティー券購入額・ドメイン/サーバー/SSLシェア）
+detail.html      … 個別議員ページの実体（?id=<legislator_id> で指定。例: detail.html?id=L001。未指定時は選択リストを表示）
 gas-client.js     … フロント共通のGAS呼び出しクライアント
 gas/Code.gs       … GASプロキシ（Notion API呼び出し・書き込み）
 ```
+
+summary.html / detail.html は単体でも開けますが（`detail.html?id=L001` を直接開くなど）、通常は `index.html` を開き、タブ間の遷移は `postMessage` で親（シェル）とやり取りしています。
 
 ## データモデル
 

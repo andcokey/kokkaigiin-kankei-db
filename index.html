@@ -1,556 +1,91 @@
-<title>GMO×国会議員 関係DB — 全体サマリ</title>
+<meta charset="utf-8" />
+<title>GMO×国会議員 関係DB</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root{
     color-scheme: light;
-    --page:#f9f9f7; --surface:#fcfcfb; --surface-raised:#ffffff;
-    --ink:#0b0b0b; --ink-2:#52514e; --ink-muted:#898781;
-    --border:rgba(11,11,11,0.10); --grid:#e1e0d9; --baseline:#c3c2b7;
-    --accent:#2a78d6; --accent-soft:#e8f0fb; --accent-ink:#184f95;
-    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
-    --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948; --sOther:#c3c2b7;
+    --shell-bg:#ffffff; --shell-border:#e3e3e0; --shell-ink:#1a1a19; --shell-ink-muted:#84837e;
+    --shell-accent:#2b3a5c;
   }
   @media (prefers-color-scheme: dark){
     :root:where(:not([data-theme="light"])){
       color-scheme: dark;
-      --page:#0d0d0d; --surface:#1a1a19; --surface-raised:#202220;
-      --ink:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
-      --border:rgba(255,255,255,0.10); --grid:#2c2c2a; --baseline:#383835;
-      --accent:#3987e5; --accent-soft:#152538; --accent-ink:#9ec5f4;
-      --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
-      --s5:#d55181; --s6:#3fb43f; --s7:#9085e9; --s8:#e66767; --sOther:#5a5a57;
+      --shell-bg:#17191c; --shell-border:#30322f; --shell-ink:#e8e6de; --shell-ink-muted:#8b897f;
+      --shell-accent:#8ea0cc;
     }
   }
   :root[data-theme="dark"]{
     color-scheme: dark;
-    --page:#0d0d0d; --surface:#1a1a19; --surface-raised:#202220;
-    --ink:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
-    --border:rgba(255,255,255,0.10); --grid:#2c2c2a; --baseline:#383835;
-    --accent:#3987e5; --accent-soft:#152538; --accent-ink:#9ec5f4;
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
-    --s5:#d55181; --s6:#3fb43f; --s7:#9085e9; --s8:#e66767; --sOther:#5a5a57;
+    --shell-bg:#17191c; --shell-border:#30322f; --shell-ink:#e8e6de; --shell-ink-muted:#8b897f;
+    --shell-accent:#8ea0cc;
   }
   *{box-sizing:border-box;}
+  html, body{ margin:0; height:100%; }
   body{
-    margin:0; background:var(--page); color:var(--ink);
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+    background:var(--shell-bg); color:var(--shell-ink);
     font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
-    -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:1240px; margin:0 auto; padding:28px 24px 80px;}
-
-  header.page-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap;}
-  h1{font-size:20px; font-weight:700; margin:0; letter-spacing:.01em;}
-  .subtitle{color:var(--ink-muted); font-size:13px; margin-top:4px;}
-  .headlinks{display:flex; gap:14px; align-items:center; font-size:12.5px;}
-  .headlinks a{color:var(--accent); text-decoration:none; cursor:pointer;}
-  .headlinks a:hover{text-decoration:underline;}
-
-  .filterbar{
-    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
-    background:var(--surface); border:1px solid var(--border); border-radius:10px;
-    padding:12px 16px; margin-bottom:22px;
+  .shell-topbar{
+    display:flex; align-items:center; gap:4px; flex:none;
+    padding:10px 18px 0; border-bottom:1px solid var(--shell-border);
   }
-  .filtergroup{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  .filterlabel{font-size:12px; color:var(--ink-muted); font-weight:600; letter-spacing:.03em; margin-right:2px;}
-  .chip{
-    border:1px solid var(--border); background:var(--surface-raised); color:var(--ink-2);
-    border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; user-select:none;
-    transition:background .12s,color .12s,border-color .12s;
+  .shell-brand{
+    font-size:13.5px; font-weight:700; letter-spacing:.01em; color:var(--shell-ink);
+    margin-right:18px; padding-bottom:10px;
   }
-  .chip:hover{border-color:var(--accent);}
-  .chip.active{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
-  .chip .dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:-1px;}
-  .resetlink{font-size:12px; color:var(--accent); cursor:pointer; margin-left:auto;}
-  .resetlink:hover{text-decoration:underline;}
-
-  .kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px;}
-  @media (max-width:980px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
-  .card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px;}
-  .kpi-label{font-size:12px; color:var(--ink-muted); font-weight:600; letter-spacing:.02em;}
-  .kpi-value{font-size:26px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums;}
-  .kpi-value small{font-size:13px; color:var(--ink-muted); font-weight:500; margin-left:2px;}
-  .stackbar{display:flex; height:8px; border-radius:4px; overflow:hidden; margin-top:12px; background:var(--grid);}
-  .stackbar span{height:100%;}
-  .stackbar-legend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:10px; font-size:11.5px; color:var(--ink-2);}
-  .stackbar-legend .li{display:flex; align-items:center; gap:5px;}
-  .stackbar-legend .sw{width:8px; height:8px; border-radius:2px; flex:none;}
-
-  .mid-row{display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-bottom:22px;}
-  @media (max-width:900px){.mid-row{grid-template-columns:1fr;}}
-  .card h2{font-size:14px; font-weight:700; margin:0 0 12px;}
-  .card h2 .n{color:var(--ink-muted); font-weight:500; font-size:12px;}
-
-  .ranklist{display:flex; flex-direction:column; gap:9px;}
-  .rankrow{display:grid; grid-template-columns:20px 130px 1fr 88px; align-items:center; gap:10px; font-size:12.5px; text-decoration:none; color:inherit;}
-  .rankrow .idx{color:var(--ink-muted); font-variant-numeric:tabular-nums;}
-  .rankrow .name{color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .rankrow .name:hover{text-decoration:underline;}
-  .rankrow .party-tag{font-size:10.5px; color:var(--ink-muted); margin-left:5px;}
-  .rankrow .bartrack{background:var(--grid); border-radius:3px; height:10px; position:relative;}
-  .rankrow .barfill{background:var(--accent); height:100%; border-radius:3px 0 0 3px;}
-  .rankrow .amt{text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2);}
-
-  .meetlist{display:flex; flex-direction:column;}
-  .meetrow{display:flex; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px; text-decoration:none; color:inherit;}
-  .meetrow:last-child{border-bottom:none;}
-  .meetrow .date{color:var(--ink-muted); flex:none; width:78px; font-variant-numeric:tabular-nums;}
-  .meetrow .who{flex:1; color:var(--ink);}
-  .meetrow .who:hover{text-decoration:underline;}
-  .meetrow .note{color:var(--ink-muted); flex:none; max-width:40%; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-
-  .news-card{margin-bottom:22px;}
-
-  .tabbar{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:16px;}
-  .tabbtn{
-    padding:9px 18px; font-size:13px; font-weight:600; color:var(--ink-muted);
-    background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; margin-bottom:-1px;
+  .shell-tab{
+    font:inherit; font-size:13.5px; font-weight:600; color:var(--shell-ink-muted);
+    background:none; border:none; border-bottom:2px solid transparent;
+    padding:8px 16px 10px; cursor:pointer; margin-bottom:-1px;
   }
-  .tabbtn.active{color:var(--ink); border-bottom-color:var(--accent);}
-  .tabpanel{display:none;}
-  .tabpanel.active{display:block;}
-
-  .chartrow{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-  @media (max-width:900px){.chartrow{grid-template-columns:1fr;}}
-  .chart-card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
-  .chart-card-head h3{font-size:13px; font-weight:700; margin:0;}
-  .toggle{display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden;}
-  .toggle button{
-    border:none; background:var(--surface-raised); color:var(--ink-muted); font-size:11.5px;
-    padding:5px 10px; cursor:pointer;
+  .shell-tab.active{ color:var(--shell-ink); border-bottom-color:var(--shell-accent); }
+  .shell-tab:hover{ color:var(--shell-ink); }
+  .shell-body{ flex:1; min-height:0; position:relative; }
+  .shell-frame{
+    position:absolute; inset:0; width:100%; height:100%; border:none; display:none;
   }
-  .toggle button.active{background:var(--accent); color:#fff;}
-  .toggle button+button{border-left:1px solid var(--border);}
-
-  .chart-body{display:flex; gap:20px; align-items:center;}
-  .legend{display:flex; flex-direction:column; gap:7px; font-size:12px; min-width:150px;}
-  .legend .li{display:flex; align-items:baseline; gap:7px; color:var(--ink-2);}
-  .legend .sw{width:9px; height:9px; border-radius:2px; flex:none; margin-top:2px;}
-  .legend .val{margin-left:auto; font-variant-numeric:tabular-nums; color:var(--ink-muted); font-size:11px;}
-
-  .barchart{display:flex; flex-direction:column; gap:8px; flex:1;}
-  .bc-row{display:grid; grid-template-columns:120px 1fr 46px; align-items:center; gap:8px; font-size:12px;}
-  .bc-row .lbl{color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .bc-row .track{background:var(--grid); border-radius:3px; height:11px;}
-  .bc-row .fill{height:100%; border-radius:3px;}
-  .bc-row .pct{text-align:right; color:var(--ink-muted); font-variant-numeric:tabular-nums;}
-
-  .empty-state{
-    padding:36px 20px; text-align:center; color:var(--ink-muted); font-size:12.5px;
-    border:1px dashed var(--border); border-radius:8px; line-height:1.7;
-  }
-  .empty-state b{color:var(--ink-2);}
-
-  #loadingScreen{padding:80px 20px; text-align:center; color:var(--ink-muted); font-size:13px;}
-  #errorScreen{display:none; padding:24px; text-align:center; color:var(--ink-muted); font-size:13px;}
-  #errorScreen button{margin-top:10px; font:inherit; padding:6px 14px; border-radius:7px; border:1px solid var(--border); background:var(--surface-raised); cursor:pointer;}
-  #appRoot{display:none;}
-
-  footer.note{margin-top:30px; font-size:11.5px; color:var(--ink-muted); line-height:1.7;}
+  .shell-frame.active{ display:block; }
 </style>
 
-<div class="wrap">
-  <div id="loadingScreen">読み込み中…</div>
-  <div id="errorScreen">
-    <div id="errorMsg"></div>
-    <button id="retryBtn">GAS接続設定をやり直す</button>
-  </div>
-
-  <div id="appRoot">
-    <header class="page-head">
-      <div>
-        <h1>国会議員 × GMOグループ 関係管理ダッシュボード</h1>
-        <div class="subtitle">全体サマリ</div>
-      </div>
-      <div class="headlinks">
-        <a id="reconfigureLink">GAS接続設定を変更</a>
-      </div>
-    </header>
-
-    <div class="filterbar">
-      <div class="filtergroup">
-        <span class="filterlabel">議院</span>
-        <span class="chip active" data-house="all">すべて</span>
-        <span class="chip" data-house="衆議院">衆議院</span>
-        <span class="chip" data-house="参議院">参議院</span>
-      </div>
-      <div class="filtergroup" id="partyChips">
-        <span class="filterlabel">政党</span>
-      </div>
-      <span class="resetlink" id="resetFilters">フィルタをリセット</span>
-    </div>
-
-    <div class="kpi-row">
-      <div class="card">
-        <div class="kpi-label">議員数</div>
-        <div class="kpi-value" id="kpiCount"></div>
-        <div class="stackbar" id="kpiCountBar"></div>
-        <div class="stackbar-legend" id="kpiCountLegend"></div>
-      </div>
-      <div class="card">
-        <div class="kpi-label">パーティー券購入総額</div>
-        <div class="kpi-value" id="kpiAmount">¥0</div>
-        <div class="stackbar" id="kpiAmountBar"></div>
-        <div class="stackbar-legend" id="kpiAmountLegend"></div>
-      </div>
-      <div class="card">
-        <div class="kpi-label">対象ドメイン数</div>
-        <div class="kpi-value" id="kpiDomains"></div>
-        <div class="subtitle" style="margin-top:12px; font-size:11.5px;">ドメイン情報を確認できた議員数</div>
-      </div>
-      <div class="card">
-        <div class="kpi-label">関連ニュース</div>
-        <div class="kpi-value">N/A</div>
-        <div class="subtitle" style="margin-top:12px; font-size:11.5px;">RSS連携は未整備です。整備後にここへ反映されます。</div>
-      </div>
-    </div>
-
-    <div class="mid-row">
-      <div class="card">
-        <h2>パーティー券購入額ランキング <span class="n">上位10名・個人</span></h2>
-        <div class="ranklist" id="rankList"></div>
-      </div>
-      <div class="card">
-        <h2>最終面会 <span class="n">直近5件</span></h2>
-        <div class="meetlist" id="meetList"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="tabbar">
-        <button class="tabbtn active" data-tab="domain">ドメイン</button>
-        <button class="tabbtn" data-tab="server">サーバー</button>
-        <button class="tabbtn" data-tab="ssl">SSL</button>
-      </div>
-
-      <div class="tabpanel active" data-panel="domain">
-        <div class="chartrow">
-          <div class="chart-unit" data-metric="domainCompany" data-title="ドメイン管理会社シェア"></div>
-          <div class="chart-unit" data-metric="domainService" data-title="ドメイン提供サービスシェア"></div>
-        </div>
-      </div>
-      <div class="tabpanel" data-panel="server">
-        <div class="chartrow">
-          <div class="chart-unit" data-metric="serverCompany" data-title="サーバー管理会社シェア"></div>
-          <div class="chart-unit" data-metric="serverService" data-title="サーバー提供サービスシェア"></div>
-        </div>
-      </div>
-      <div class="tabpanel" data-panel="ssl">
-        <div class="chartrow">
-          <div class="chart-unit" data-metric="sslVendor" data-title="SSLベンダーシェア"></div>
-          <div class="chart-unit" data-metric="siteSeal" data-title="サイトシール有無"></div>
-        </div>
-      </div>
-    </div>
-
-    <footer class="note">
-      ※ パーティー券購入・最終面会は、弊社が実際に関係を持つ議員（関係マスタ登録者）のみ集計されます。ドメイン/サーバー/SSLは現職国会議員全員が対象です。
-    </footer>
-  </div>
+<div class="shell-topbar">
+  <div class="shell-brand">議員関係DB</div>
+  <button class="shell-tab active" data-tab="summary" id="tabSummary">全体サマリ</button>
+  <button class="shell-tab" data-tab="detail" id="tabDetail">個別ページ</button>
+</div>
+<div class="shell-body">
+  <iframe class="shell-frame active" id="frameSummary" src="summary.html"></iframe>
+  <iframe class="shell-frame" id="frameDetail"></iframe>
 </div>
 
-<script src="gas-client.js"></script>
 <script>
-const ENTITY_COLOR_ORDER = ["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)","var(--s7)","var(--s8)"];
-const OTHER_COLOR = "var(--sOther)";
+var frameSummary = document.getElementById('frameSummary');
+var frameDetail = document.getElementById('frameDetail');
+var tabSummary = document.getElementById('tabSummary');
+var tabDetail = document.getElementById('tabDetail');
+var detailLoaded = false;
 
-let ALL_ROWS = [];       // 議員マスタ（全体）
-let RELATIONS = [];      // 関係マスタ（重点対象）
-let CONTACTS = [];       // 接触履歴
-let PARTY_ORDER = [];    // 頻度順（動的）
-let PARTY_COLORS = {};
-
-let filter = { house: "all", parties: null };
-
-function fmtYen(n){ return "¥"+Math.round(n||0).toLocaleString("ja-JP"); }
-
-async function boot(){
-  try {
-    const [allRows, relations, contacts] = await Promise.all([
-      GasClient.call('listAll'),
-      GasClient.call('listRelations'),
-      GasClient.call('listContactsAll')
-    ]);
-    ALL_ROWS = allRows;
-    RELATIONS = relations;
-    CONTACTS = contacts;
-
-    const freq = {};
-    ALL_ROWS.forEach(r => { if (r.party) freq[r.party] = (freq[r.party]||0) + 1; });
-    PARTY_ORDER = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
-    PARTY_ORDER.forEach((p,i) => { PARTY_COLORS[p] = i < 8 ? ENTITY_COLOR_ORDER[i] : OTHER_COLOR; });
-    filter.parties = new Set(PARTY_ORDER);
-
-    document.getElementById('loadingScreen').style.display = 'none';
-    document.getElementById('appRoot').style.display = 'block';
-
-    renderPartyChips();
-    document.querySelectorAll(".chart-unit").forEach(buildChartUnit);
-    renderAll();
-  } catch (err) {
-    document.getElementById('loadingScreen').style.display = 'none';
-    document.getElementById('errorScreen').style.display = 'block';
-    document.getElementById('errorMsg').textContent = '読み込みに失敗しました: ' + err.message;
-  }
+function activateTab(name){
+  tabSummary.classList.toggle('active', name === 'summary');
+  tabDetail.classList.toggle('active', name === 'detail');
+  frameSummary.classList.toggle('active', name === 'summary');
+  frameDetail.classList.toggle('active', name === 'detail');
 }
 
-function filteredAll(){
-  return ALL_ROWS.filter(r => (filter.house==="all" || r.house===filter.house) && filter.parties.has(r.party));
-}
-function filteredRelationIds(){
-  // フィルタ条件に合う「議員マスタ（全体）」側のページIDの集合（関係マスタ→全体の紐付けで絞り込む）
-  const allowedAllIds = new Set(filteredAll().map(r=>r.id));
-  return new Set(RELATIONS.filter(r => allowedAllIds.has(r.allMasterId)).map(r=>r.id));
-}
-
-function renderPartyChips(){
-  const el = document.getElementById("partyChips");
-  PARTY_ORDER.forEach(p => {
-    const chip = document.createElement("span");
-    chip.className = "chip active"; chip.dataset.party = p;
-    chip.innerHTML = '<span class="dot" style="background:'+PARTY_COLORS[p]+'"></span>'+p;
-    chip.addEventListener("click", () => {
-      if (filter.parties.has(p)) { filter.parties.delete(p); chip.classList.remove("active"); }
-      else { filter.parties.add(p); chip.classList.add("active"); }
-      renderAll();
-    });
-    el.appendChild(chip);
-  });
-}
-
-function renderKPIs(){
-  const rows = filteredAll();
-  document.getElementById("kpiCount").innerHTML = rows.length + "<small>人</small>";
-  document.getElementById("kpiDomains").innerHTML = rows.filter(r=>r.domain).length + "<small>件</small>";
-
-  const relIds = filteredRelationIds();
-  const relById = {}; RELATIONS.forEach(r => relById[r.id] = r);
-  const seminarContacts = CONTACTS.filter(c => c.type === 'セミナー献金（パーティー券購入）' && c.relationId && relIds.has(c.relationId));
-  let totalAmount = 0;
-  const amtByParty = {};
-  seminarContacts.forEach(c => {
-    const rel = relById[c.relationId];
-    const amt = c.amount || 0;
-    totalAmount += amt;
-    if (rel) amtByParty[rel.party] = (amtByParty[rel.party]||0) + amt;
-  });
-  document.getElementById("kpiAmount").textContent = fmtYen(totalAmount);
-
-  const counts = {}; rows.forEach(r => { counts[r.party] = (counts[r.party]||0)+1; });
-  const countBar = document.getElementById("kpiCountBar"); countBar.innerHTML="";
-  const countLegend = document.getElementById("kpiCountLegend"); countLegend.innerHTML="";
-  const amtBar = document.getElementById("kpiAmountBar"); amtBar.innerHTML="";
-  const amtLegend = document.getElementById("kpiAmountLegend"); amtLegend.innerHTML="";
-
-  PARTY_ORDER.forEach(p => {
-    if (counts[p] > 0){
-      const seg = document.createElement("span");
-      seg.style.background = PARTY_COLORS[p]; seg.style.width = (counts[p]/Math.max(rows.length,1)*100)+"%";
-      countBar.appendChild(seg);
-      const li = document.createElement("span"); li.className="li";
-      li.innerHTML = '<span class="sw" style="background:'+PARTY_COLORS[p]+'"></span>'+p+" "+counts[p];
-      countLegend.appendChild(li);
-    }
-    const partyAmt = amtByParty[p];
-    if (partyAmt > 0){
-      const seg = document.createElement("span");
-      seg.style.background = PARTY_COLORS[p]; seg.style.width = (partyAmt/Math.max(totalAmount,1)*100)+"%";
-      amtBar.appendChild(seg);
-      const li = document.createElement("span"); li.className="li";
-      li.innerHTML = '<span class="sw" style="background:'+PARTY_COLORS[p]+'"></span>'+p+" "+fmtYen(partyAmt);
-      amtLegend.appendChild(li);
-    }
-  });
-}
-
-function renderRanking(){
-  const relIds = filteredRelationIds();
-  const relById = {}; RELATIONS.forEach(r => relById[r.id] = r);
-  const totals = {}; // relationId -> amount
-  CONTACTS.forEach(c => {
-    if (c.type !== 'セミナー献金（パーティー券購入）' || !c.relationId || !relIds.has(c.relationId)) return;
-    totals[c.relationId] = (totals[c.relationId]||0) + (c.amount||0);
-  });
-  const rows = Object.entries(totals)
-    .map(([relId, amount]) => ({ rel: relById[relId], amount }))
-    .filter(r => r.rel)
-    .sort((a,b) => b.amount - a.amount)
-    .slice(0, 10);
-  const max = rows[0] ? rows[0].amount : 1;
-  const el = document.getElementById("rankList"); el.innerHTML = "";
-  if (!rows.length){
-    el.innerHTML = '<div class="empty-state">該当するデータがありません</div>';
-    return;
-  }
-  rows.forEach((r, i) => {
-    const a = document.createElement("a"); a.className = "rankrow";
-    a.href = "detail.html?id=" + encodeURIComponent(r.rel.legislatorId);
-    a.innerHTML =
-      '<span class="idx">'+(i+1)+'</span>'+
-      '<span class="name">'+r.rel.name+'<span class="party-tag">'+r.rel.party+'</span></span>'+
-      '<span class="bartrack"><span class="barfill" style="width:'+(r.amount/max*100)+'%"></span></span>'+
-      '<span class="amt">'+fmtYen(r.amount)+'</span>';
-    el.appendChild(a);
-  });
-}
-
-function renderMeetings(){
-  const relIds = filteredRelationIds();
-  const relById = {}; RELATIONS.forEach(r => relById[r.id] = r);
-  const rows = CONTACTS
-    .filter(c => c.type === '面談' && c.date && c.relationId && relIds.has(c.relationId))
-    .sort((a,b) => (b.date||'').localeCompare(a.date||''))
-    .slice(0, 5);
-  const el = document.getElementById("meetList"); el.innerHTML = "";
-  if (!rows.length){
-    el.innerHTML = '<div class="empty-state">該当するデータがありません</div>';
-    return;
-  }
-  rows.forEach(m => {
-    const rel = relById[m.relationId];
-    const a = document.createElement("a"); a.className = "meetrow";
-    a.href = "detail.html?id=" + encodeURIComponent(rel ? rel.legislatorId : '');
-    a.innerHTML = '<span class="date">'+m.date+'</span><span class="who">'+(rel?rel.name:'') +'</span><span class="note">'+(m.content||'')+'</span>';
-    el.appendChild(a);
-  });
-}
-
-function aggregate(rows, key){
-  const m = {};
-  rows.forEach(r => { const v = r[key]; if (v) m[v] = (m[v]||0)+1; });
-  return Object.entries(m).sort((a,b) => b[1]-a[1]);
-}
-
-function buildChartUnit(container){
-  const title = container.dataset.title;
-  container.innerHTML =
-    '<div class="chart-card-head"><h3>'+title+'</h3>'+
-    '<div class="toggle"><button class="pie active" data-mode="pie">円</button><button class="bar" data-mode="bar">棒</button></div></div>'+
-    '<div class="chart-slot"></div>';
-  container._mode = "pie";
-  container.querySelectorAll(".toggle button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      container.querySelectorAll(".toggle button").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      container._mode = btn.dataset.mode;
-      renderChartUnit(container);
-    });
-  });
-}
-
-function renderChartUnit(container){
-  const metric = container.dataset.metric;
-  const slot = container.querySelector(".chart-slot");
-  const rows = filteredAll();
-  let entries = aggregate(rows, metric);
-  const top = entries.slice(0, 5);
-  const otherSum = entries.slice(5).reduce((s,e) => s+e[1], 0);
-  if (otherSum > 0) top.push(["その他", otherSum]);
-  const total = top.reduce((s,e) => s+e[1], 0) || 1;
-  const colored = top.map((e,i) => ({ label: e[0], value: e[1], color: e[0]==="その他" ? OTHER_COLOR : ENTITY_COLOR_ORDER[i % ENTITY_COLOR_ORDER.length] }));
-
-  if (!entries.length){
-    slot.innerHTML = '<div class="empty-state">該当するデータがありません</div>';
-    return;
-  }
-
-  if (container._mode === "bar"){
-    slot.innerHTML = '<div class="barchart"></div>';
-    const bc = slot.querySelector(".barchart");
-    colored.forEach(e => {
-      const row = document.createElement("div"); row.className = "bc-row";
-      row.innerHTML =
-        '<span class="lbl">'+e.label+'</span>'+
-        '<span class="track"><span class="fill" style="width:'+(e.value/total*100)+'%; background:'+e.color+'"></span></span>'+
-        '<span class="pct">'+e.value+'件</span>';
-      bc.appendChild(row);
-    });
-  } else {
-    slot.innerHTML = '<div class="chart-body"><div class="donut"></div><div class="legend"></div></div>';
-    const donutEl = slot.querySelector(".donut");
-    const legendEl = slot.querySelector(".legend");
-    donutEl.appendChild(makeDonutSVG(colored, total));
-    colored.forEach(e => {
-      const li = document.createElement("div"); li.className = "li";
-      li.innerHTML = '<span class="sw" style="background:'+e.color+'"></span><span class="lbl">'+e.label+'</span><span class="val">'+Math.round(e.value/total*100)+'%</span>';
-      legendEl.appendChild(li);
-    });
-  }
-}
-
-function makeDonutSVG(entries, total){
-  const size=132, r=52, cx=size/2, cy=size/2, sw=20;
-  const ns="http://www.w3.org/2000/svg";
-  const svg=document.createElementNS(ns,"svg");
-  svg.setAttribute("width",size); svg.setAttribute("height",size); svg.setAttribute("viewBox","0 0 "+size+" "+size);
-  let angle=-90;
-  const circumference = 2*Math.PI*r;
-  entries.forEach(e=>{
-    const frac = e.value/total;
-    const dash = circumference*frac;
-    const gap = circumference-dash;
-    const circle=document.createElementNS(ns,"circle");
-    circle.setAttribute("cx",cx); circle.setAttribute("cy",cy); circle.setAttribute("r",r);
-    circle.setAttribute("fill","none");
-    circle.setAttribute("stroke", getComputedColor(e.color));
-    circle.setAttribute("stroke-width",sw);
-    circle.setAttribute("stroke-dasharray", dash+" "+gap);
-    circle.setAttribute("stroke-dashoffset", -( (angle+90)/360*circumference ));
-    circle.setAttribute("transform","rotate(-90 "+cx+" "+cy+")");
-    svg.appendChild(circle);
-    angle += frac*360;
-  });
-  const label=document.createElementNS(ns,"text");
-  label.setAttribute("x",cx); label.setAttribute("y",cy+4); label.setAttribute("text-anchor","middle");
-  label.setAttribute("font-size","13"); label.setAttribute("font-weight","700");
-  label.setAttribute("fill", getComputedColor("var(--ink)"));
-  label.textContent = total+"件";
-  svg.appendChild(label);
-  return svg;
-}
-function getComputedColor(varStr){
-  const probe=document.createElement("span"); probe.style.color=varStr; document.body.appendChild(probe);
-  const c=getComputedStyle(probe).color; document.body.removeChild(probe); return c;
-}
-
-function renderAll(){
-  renderKPIs();
-  renderRanking();
-  renderMeetings();
-  document.querySelectorAll(".chart-unit").forEach(renderChartUnit);
-}
-
-document.querySelectorAll(".filterbar [data-house]").forEach(chip => {
-  chip.addEventListener("click", () => {
-    document.querySelectorAll(".filterbar [data-house]").forEach(c => c.classList.remove("active"));
-    chip.classList.add("active");
-    filter.house = chip.dataset.house;
-    renderAll();
-  });
-});
-document.getElementById("resetFilters").addEventListener("click", () => {
-  filter = { house: "all", parties: new Set(PARTY_ORDER) };
-  document.querySelectorAll(".filterbar [data-house]").forEach(c => c.classList.remove("active"));
-  document.querySelector('.filterbar [data-house="all"]').classList.add("active");
-  document.querySelectorAll("#partyChips .chip").forEach(c => c.classList.add("active"));
-  renderAll();
-});
-document.querySelectorAll(".tabbtn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tabpanel").forEach(p => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.querySelector('.tabpanel[data-panel="'+btn.dataset.tab+'"]').classList.add("active");
-  });
-});
-document.getElementById("reconfigureLink").addEventListener("click", () => {
-  GasClient.resetConfig();
-  boot();
-});
-document.getElementById("retryBtn").addEventListener("click", () => {
-  GasClient.resetConfig();
-  document.getElementById('errorScreen').style.display = 'none';
-  document.getElementById('loadingScreen').style.display = 'block';
-  boot();
+tabSummary.addEventListener('click', function(){ activateTab('summary'); });
+tabDetail.addEventListener('click', function(){
+  if (!detailLoaded) { frameDetail.src = 'detail.html'; detailLoaded = true; }
+  activateTab('detail');
 });
 
-boot();
+window.addEventListener('message', function(ev){
+  if (!ev.data || typeof ev.data !== 'object') return;
+  if (ev.data.type === 'open-detail' && ev.data.id) {
+    frameDetail.src = 'detail.html?id=' + encodeURIComponent(ev.data.id);
+    detailLoaded = true;
+    activateTab('detail');
+  } else if (ev.data.type === 'open-summary') {
+    activateTab('summary');
+  }
+});
 </script>
