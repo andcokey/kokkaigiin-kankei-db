@@ -205,6 +205,13 @@
   .loading-state { padding: 60px 16px; text-align: center; color: var(--ink-faint); font-size: 13px; }
 
   .foot-note { margin-top: 28px; padding: 12px 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--ink-faint); }
+
+  .search-input {
+    width: 100%; margin-bottom: 10px; font: inherit; font-size: 12.5px; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px;
+  }
+  .na-note { color: var(--ink-faint); font-size: 12.5px; }
+  .badge.b-muted { background: var(--surface-3); color: var(--ink-faint); border-color: transparent; }
 </style>
 
 <div class="app">
@@ -219,19 +226,21 @@
   <div id="loadingScreen" class="loading-state">読み込み中…</div>
   <div id="pickScreen" style="display:none; max-width: 640px; margin: 40px auto;">
     <h2 style="margin-bottom:6px; font-size:18px; font-weight:500;">議員を選択してください</h2>
-    <div class="sort-hint" style="margin-bottom:16px;">個別ページがあるのは「関係マスタ」に登録された議員のみです</div>
-    <div class="nav-list" id="pickList" style="max-height:none;"></div>
+    <div class="sort-hint" style="margin-bottom:12px;">現職国会議員712名全員のページがあります（関係マスタ登録者は接触履歴等も表示されます）</div>
+    <input type="text" class="search-input" id="pickSearch" placeholder="氏名で検索" />
+    <div class="nav-list" id="pickList" style="max-height:60vh; margin-top:10px;"></div>
   </div>
   <div id="appRoot" class="layout" style="display:none;">
     <div class="sidebar">
-      <div class="label">議員一覧（関係マスタ登録者）</div>
+      <div class="label">議員一覧（全体）</div>
       <select class="sort-select" id="sidebarSort">
         <option value="party" selected>同党の議員（既定）</option>
         <option value="kana">五十音順</option>
       </select>
+      <input type="text" class="search-input" id="sidebarSearch" placeholder="氏名で検索" />
       <div class="sort-hint" id="sortHint"></div>
       <div class="nav-list" id="navList"></div>
-      <div class="note">個別ページがあるのは「関係マスタ」に登録された議員のみです。</div>
+      <div class="note">接触履歴等が表示されるのは「関係マスタ」に登録された議員のみです。それ以外はドメイン/サーバー/SSL情報のみ表示されます。</div>
     </div>
 
     <div class="main">
@@ -271,54 +280,57 @@
       <div class="hist-head">
         <div>
           <h2>接触履歴</h2>
-          <div class="hint">面談・贈答・セミナー献金（パーティー券購入）を1本のタイムラインで表示します</div>
+          <div class="hint" id="histHint">面談・贈答・セミナー献金（パーティー券購入）を1本のタイムラインで表示します</div>
         </div>
       </div>
 
-      <div class="hist-toolbar">
-        <div class="chip-row" id="typeChips">
-          <span class="chip active" data-type="all">すべて</span>
-          <span class="chip" data-type="面談">面談</span>
-          <span class="chip" data-type="贈答">贈答</span>
-          <span class="chip" data-type="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</span>
+      <div id="histRelationBlock">
+        <div class="hist-toolbar">
+          <div class="chip-row" id="typeChips">
+            <span class="chip active" data-type="all">すべて</span>
+            <span class="chip" data-type="面談">面談</span>
+            <span class="chip" data-type="贈答">贈答</span>
+            <span class="chip" data-type="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</span>
+          </div>
+          <button class="add-btn" id="addToggle" type="button">＋ 履歴を追加</button>
         </div>
-        <button class="add-btn" id="addToggle" type="button">＋ 履歴を追加</button>
-      </div>
 
-      <div class="add-form" id="addForm">
-        <div class="fg-title">履歴を追加</div>
-        <div class="row">
-          <label>種別
-            <select id="f-type">
-              <option value="面談">面談</option>
-              <option value="贈答">贈答</option>
-              <option value="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</option>
-            </select>
+        <div class="add-form" id="addForm">
+          <div class="fg-title">履歴を追加</div>
+          <div class="row">
+            <label>種別
+              <select id="f-type">
+                <option value="面談">面談</option>
+                <option value="贈答">贈答</option>
+                <option value="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</option>
+              </select>
+            </label>
+            <label>日付
+              <input type="date" id="f-date" />
+            </label>
+            <label id="f-amount-label" class="field-hidden">金額（円）
+              <input type="number" id="f-amount" placeholder="200000" />
+            </label>
+          </div>
+          <label class="memo-row">内容
+            <textarea id="f-content" placeholder="例：新サービスの規制対応について意見交換／議員会館第一議員会館にて"></textarea>
           </label>
-          <label>日付
-            <input type="date" id="f-date" />
+          <label class="memo-row">備考
+            <textarea id="f-note" placeholder="任意"></textarea>
           </label>
-          <label id="f-amount-label" class="field-hidden">金額（円）
-            <input type="number" id="f-amount" placeholder="200000" />
-          </label>
+          <div class="actions">
+            <span class="err" id="addErr"></span>
+            <button class="btn-secondary" id="addCancel" type="button">キャンセル</button>
+            <button class="add-btn" id="addSubmit" type="button">追加する</button>
+          </div>
         </div>
-        <label class="memo-row">内容
-          <textarea id="f-content" placeholder="例：新サービスの規制対応について意見交換／議員会館第一議員会館にて"></textarea>
-        </label>
-        <label class="memo-row">備考
-          <textarea id="f-note" placeholder="任意"></textarea>
-        </label>
-        <div class="actions">
-          <span class="err" id="addErr"></span>
-          <button class="btn-secondary" id="addCancel" type="button">キャンセル</button>
-          <button class="add-btn" id="addSubmit" type="button">追加する</button>
-        </div>
-      </div>
 
-      <div class="ledger" id="ledger"></div>
+        <div class="ledger" id="ledger"></div>
+      </div>
+      <div id="histNaBlock" class="empty-state" style="display:none;">N/A（この議員は関係マスタに未登録のため、接触履歴はありません）</div>
 
       <div class="foot-note">
-        ※ パーティー券購入・贈答・面談の初回データはCSV一括登録によるものです。以降の追加はこのページの「＋履歴を追加」からNotionへ書き込まれます。<br>
+        ※ パーティー券購入・贈答・面談の初回データはCSV一括登録によるものです。関係マスタ登録者は「＋履歴を追加」からNotionへ追記できます。<br>
         ※ ニュースは現在RSS連携が未整備のため、このタイムラインには含まれていません（整備後に反映予定）。
       </div>
     </div>
@@ -330,36 +342,75 @@
 var AVATAR_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="4"></circle><path d="M4 20c0-4.2 3.6-6.4 8-6.4s8 2.2 8 6.4"></path></svg>';
 
 var qs = new URLSearchParams(location.search);
-var legislatorId = qs.get('id');
+var idParam = qs.get('id');
 
-var STATE = { relations: [], allRows: [], activeRelation: null, activeAllRow: null, contacts: [], qualityNotes: [], activeType: 'all' };
+var STATE = {
+  relations: [], allRows: [], unified: [],
+  activeRelation: null, activeAllRow: null, person: null,
+  contacts: [], qualityNotes: [], activeType: 'all',
+  sidebarMode: 'party'
+};
 
 function fmtYen(n){ return (n||0).toLocaleString('ja-JP') + '円'; }
+
+// idパラメータは legislator_id（"L001"など・関係マスタ）か、
+// 議員マスタ（全体）のページIDのどちらでも受け付ける
+function resolvePerson(idParam, relations, allRows){
+  var rel = null, all = null;
+  if (idParam) {
+    if (/^L\d+$/i.test(idParam)) {
+      rel = relations.filter(function(r){ return r.legislatorId === idParam; })[0] || null;
+      if (rel && rel.allMasterId) all = allRows.filter(function(r){ return r.id === rel.allMasterId; })[0] || null;
+    } else {
+      all = allRows.filter(function(r){ return r.id === idParam; })[0] || null;
+      if (all) rel = relations.filter(function(r){ return r.allMasterId === all.id; })[0] || null;
+    }
+  }
+  return { rel: rel, all: all };
+}
+
+// サイドバー・選択画面用の統合リスト（議員マスタ全体712名＋関係マスタのみ登録の2名）
+function buildUnifiedList(){
+  var list = STATE.allRows.map(function(r){
+    return { linkId: r.id, name: r.name, party: r.party, house: r.house, district: r.district, kana: r.kana || '' };
+  });
+  STATE.relations.forEach(function(r){
+    if (!r.allMasterId) list.push({ linkId: r.legislatorId, name: r.name, party: r.party, house: r.house, district: r.district, kana: '' });
+  });
+  return list;
+}
 
 async function boot(){
   try {
     var relations = await GasClient.call('listRelations');
+    var allRows = await GasClient.call('listAll');
     STATE.relations = relations;
-    var rel = relations.filter(function(r){ return r.legislatorId === legislatorId; })[0];
-    if (!rel) {
-      document.getElementById('loadingScreen').textContent = '指定された議員（id=' + legislatorId + '）は関係マスタに見つかりません。';
+    STATE.allRows = allRows;
+    STATE.unified = buildUnifiedList();
+
+    var resolved = resolvePerson(idParam, relations, allRows);
+    if (!resolved.rel && !resolved.all) {
+      document.getElementById('loadingScreen').textContent = '指定された議員（id=' + idParam + '）が見つかりません。';
       return;
     }
-    STATE.activeRelation = rel;
+    STATE.activeRelation = resolved.rel;
+    STATE.activeAllRow = resolved.all;
+    STATE.person = resolved.rel
+      ? { name: resolved.rel.name, party: resolved.rel.party, house: resolved.rel.house, district: resolved.rel.district, kana: resolved.all ? resolved.all.kana : null }
+      : { name: resolved.all.name, party: resolved.all.party, house: resolved.all.house, district: resolved.all.district, kana: resolved.all.kana };
 
-    var allRows = await GasClient.call('listAll');
-    STATE.allRows = allRows;
-    STATE.activeAllRow = allRows.filter(function(r){ return r.id === rel.allMasterId; })[0] || null;
-
-    var contacts = await GasClient.call('getContacts', { relationPageId: rel.id });
-    STATE.contacts = contacts;
-    var qualityNotes = await GasClient.call('getQualityNotes', { relationPageId: rel.id });
-    STATE.qualityNotes = qualityNotes;
+    if (resolved.rel) {
+      STATE.contacts = await GasClient.call('getContacts', { relationPageId: resolved.rel.id });
+      STATE.qualityNotes = await GasClient.call('getQualityNotes', { relationPageId: resolved.rel.id });
+    } else {
+      STATE.contacts = [];
+      STATE.qualityNotes = [];
+    }
 
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'grid';
-    document.getElementById('crumbName').textContent = rel.name;
-    document.title = rel.name + ' — 議員関係DB';
+    document.getElementById('crumbName').textContent = STATE.person.name;
+    document.title = STATE.person.name + ' — 議員関係DB';
 
     renderSidebar('party');
     renderDossier();
@@ -370,16 +421,28 @@ async function boot(){
   }
 }
 
+function activeLinkId(){
+  return STATE.activeAllRow ? STATE.activeAllRow.id : (STATE.activeRelation ? STATE.activeRelation.legislatorId : null);
+}
+
+// 関係マスタは「自民党」、議員マスタ（全体）は「自民」のように表記が揃っていないため、
+// 政党の一致判定は末尾の「党」を無視して比較する
+function normParty(p){ return p ? p.replace(/党$/, '') : p; }
+
 function renderSidebar(mode){
-  var active = STATE.activeRelation;
-  var list = STATE.relations.slice();
-  if (mode === 'party') list = list.filter(function(r){ return r.party === active.party; });
-  list.sort(function(a,b){ return a.name.localeCompare(b.name, 'ja'); });
+  STATE.sidebarMode = mode;
+  var person = STATE.person;
+  var list = STATE.unified.slice();
+  if (mode === 'party') list = list.filter(function(r){ return normParty(r.party) === normParty(person.party); });
+  var q = (document.getElementById('sidebarSearch').value || '').trim();
+  if (q) list = list.filter(function(r){ return r.name.indexOf(q) !== -1; });
+  list.sort(function(a,b){ return (a.kana || a.name).localeCompare(b.kana || b.name, 'ja'); });
+  var curId = activeLinkId();
   var navList = document.getElementById('navList');
   navList.innerHTML = list.map(function(r){
-    var isActive = r.legislatorId === active.legislatorId ? ' active' : '';
+    var isActive = r.linkId === curId ? ' active' : '';
     var sub = mode === 'party' ? (r.house||'') + '・' + (r.district||'') : r.party + '・' + (r.house||'');
-    return '<a class="nav-item' + isActive + '" href="detail.html?id=' + encodeURIComponent(r.legislatorId) + '">' +
+    return '<a class="nav-item' + isActive + '" href="detail.html?id=' + encodeURIComponent(r.linkId) + '">' +
       '<span class="avatar">' + AVATAR_ICON + '</span>' +
       '<span class="ntext"><span class="n1">' + r.name + '</span><span class="n2">' + sub + '</span></span>' +
       '</a>';
@@ -389,47 +452,66 @@ function renderSidebar(mode){
     : '名簿から探す場面を想定した並びです';
 }
 document.getElementById('sidebarSort').addEventListener('change', function(e){ renderSidebar(e.target.value); });
+document.getElementById('sidebarSearch').addEventListener('input', function(){ renderSidebar(STATE.sidebarMode); });
 
 function kv(k, v, cls){ return '<div class="kv' + (cls?(' '+cls):'') + '"><span class="k">'+k+'</span><span class="v'+(cls==='memo-row'?'':'')+'">'+ (v || '—') +'</span></div>'; }
 
 function renderDossier(){
   var rel = STATE.activeRelation;
   var all = STATE.activeAllRow;
+  var person = STATE.person;
 
-  document.getElementById('hName').textContent = rel.name;
-  document.getElementById('hSub').textContent = [rel.party, rel.house, rel.district].filter(Boolean).join(' ／ ');
+  document.getElementById('hName').textContent = person.name;
+  document.getElementById('hSub').textContent = [person.party, person.house, person.district].filter(Boolean).join(' ／ ');
   document.getElementById('hBadges').innerHTML =
-    '<span class="badge b-type">議院：'+(rel.house||'不明')+'</span>' +
-    '<span class="badge b-cat">政党：'+(rel.party||'不明')+'</span>' +
-    (all ? '<span class="badge b-open">Web公開情報：取得済</span>' : '<span class="badge">現職サイト：対象外（引退／落選）</span>');
+    '<span class="badge b-type">議院：'+(person.house||'不明')+'</span>' +
+    '<span class="badge b-cat">政党：'+(person.party||'不明')+'</span>' +
+    (all ? '<span class="badge b-open">Web公開情報：取得済</span>' : (rel ? '<span class="badge">現職サイト：対象外（引退／落選）</span>' : '')) +
+    (rel ? '' : '<span class="badge b-muted">関係マスタ：未登録</span>');
 
   document.getElementById('fgBasic').innerHTML =
     '<div class="fg-title">基本情報</div>' +
-    kv('議院', rel.house) + kv('政党', rel.party) + kv('選挙区', rel.district) +
-    (rel.factionNotes ? kv('派閥・備考', rel.factionNotes) : '');
+    kv('議院', person.house) + kv('政党', person.party) + kv('選挙区', person.district) +
+    (person.kana ? kv('読み', person.kana) : '') +
+    (rel && rel.factionNotes ? kv('派閥・備考', rel.factionNotes) : '');
 
-  document.getElementById('fgCurrent').innerHTML =
-    '<div class="fg-title">現状</div>' +
-    kv('現職役職', rel.currentPost) + kv('選挙結果', rel.electionResult);
+  if (rel) {
+    document.getElementById('fgCurrent').innerHTML =
+      '<div class="fg-title">現状</div>' +
+      kv('現職役職', rel.currentPost) + kv('選挙結果', rel.electionResult);
 
-  var seminarContacts = STATE.contacts.filter(function(c){ return c.type === 'セミナー献金（パーティー券購入）'; });
-  var seminarTotal = seminarContacts.reduce(function(s,c){ return s + (c.amount||0); }, 0);
-  var seminarLatest = seminarContacts.map(function(c){ return c.date; }).filter(Boolean).sort().slice(-1)[0];
-  document.getElementById('fgSeminar').innerHTML =
-    '<div class="fg-title">セミナー献金（パーティー券購入・累計）</div>' +
-    kv('累計金額', fmtYen(seminarTotal)) + kv('回数', seminarContacts.length + '回') + kv('直近日', seminarLatest);
+    var seminarContacts = STATE.contacts.filter(function(c){ return c.type === 'セミナー献金（パーティー券購入）'; });
+    var seminarTotal = seminarContacts.reduce(function(s,c){ return s + (c.amount||0); }, 0);
+    var seminarLatest = seminarContacts.map(function(c){ return c.date; }).filter(Boolean).sort().slice(-1)[0];
+    document.getElementById('fgSeminar').innerHTML =
+      '<div class="fg-title">セミナー献金（パーティー券購入・累計）</div>' +
+      kv('累計金額', fmtYen(seminarTotal)) + kv('回数', seminarContacts.length + '回') + kv('直近日', seminarLatest);
 
-  document.getElementById('fgInternal').innerHTML =
-    '<div class="fg-title">社内担当</div>' +
-    kv('担当', rel.internalContact) + kv('代表名で贈るか', rel.giftInRepName);
+    document.getElementById('fgInternal').innerHTML =
+      '<div class="fg-title">社内担当</div>' +
+      kv('担当', rel.internalContact) + kv('代表名で贈るか', rel.giftInRepName);
 
-  var meetings = STATE.contacts.filter(function(c){ return c.type === '面談' && c.date; }).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
-  var last = meetings[0];
-  document.getElementById('fgLastContact').innerHTML =
-    '<div class="fg-title">最終接触（面談ベース）</div>' +
-    kv('最終面談日', last ? last.date : '記録なし') +
-    kv('内容', last ? last.content : '') +
-    (last && last.note ? kv('備考', last.note, 'memo-row') : '');
+    var meetings = STATE.contacts.filter(function(c){ return c.type === '面談' && c.date; }).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+    var last = meetings[0];
+    document.getElementById('fgLastContact').innerHTML =
+      '<div class="fg-title">最終接触（面談ベース）</div>' +
+      kv('最終面談日', last ? last.date : '記録なし') +
+      kv('内容', last ? last.content : '') +
+      (last && last.note ? kv('備考', last.note, 'memo-row') : '');
+  } else {
+    var naMsg = '<div class="na-note">N/A（関係マスタ未登録）</div>';
+    document.getElementById('fgCurrent').innerHTML = '<div class="fg-title">現状</div>' + naMsg;
+    document.getElementById('fgSeminar').innerHTML = '<div class="fg-title">セミナー献金（パーティー券購入・累計）</div>' + naMsg;
+    document.getElementById('fgInternal').innerHTML = '<div class="fg-title">社内担当</div>' + naMsg;
+    document.getElementById('fgLastContact').innerHTML = '<div class="fg-title">最終接触（面談ベース）</div>' + naMsg;
+    var last = null;
+  }
+
+  document.getElementById('histRelationBlock').style.display = rel ? '' : 'none';
+  document.getElementById('histNaBlock').style.display = rel ? 'none' : 'block';
+  document.getElementById('histHint').textContent = rel
+    ? '面談・贈答・セミナー献金（パーティー券購入）を1本のタイムラインで表示します'
+    : 'この議員は関係マスタに未登録です';
 
   if (all) {
     document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService);
@@ -552,24 +634,37 @@ function goToSummary(ev){
 document.getElementById('brandLink').addEventListener('click', goToSummary);
 document.getElementById('crumbSummaryLink').addEventListener('click', goToSummary);
 
+var pickerList = [];
+
+function renderPickerList(){
+  var q = (document.getElementById('pickSearch').value || '').trim();
+  var list = q ? pickerList.filter(function(r){ return r.name.indexOf(q) !== -1; }) : pickerList;
+  document.getElementById('pickList').innerHTML = list.map(function(r){
+    return '<a class="nav-item" href="detail.html?id=' + encodeURIComponent(r.linkId) + '">' +
+      '<span class="avatar">' + AVATAR_ICON + '</span>' +
+      '<span class="ntext"><span class="n1">' + r.name + '</span><span class="n2">' + (r.party||'') + '・' + (r.house||'') + '</span></span>' +
+      '</a>';
+  }).join('');
+}
+
 async function renderPicker(){
   try {
     var relations = await GasClient.call('listRelations');
-    relations.sort(function(a,b){ return a.name.localeCompare(b.name, 'ja'); });
+    var allRows = await GasClient.call('listAll');
+    STATE.relations = relations;
+    STATE.allRows = allRows;
+    pickerList = buildUnifiedList();
+    pickerList.sort(function(a,b){ return (a.kana || a.name).localeCompare(b.kana || b.name, 'ja'); });
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('pickScreen').style.display = 'block';
-    document.getElementById('pickList').innerHTML = relations.map(function(r){
-      return '<a class="nav-item" href="detail.html?id=' + encodeURIComponent(r.legislatorId) + '">' +
-        '<span class="avatar">' + AVATAR_ICON + '</span>' +
-        '<span class="ntext"><span class="n1">' + r.name + '</span><span class="n2">' + (r.party||'') + '・' + (r.house||'') + '</span></span>' +
-        '</a>';
-    }).join('');
+    renderPickerList();
+    document.getElementById('pickSearch').addEventListener('input', renderPickerList);
   } catch (err) {
     document.getElementById('loadingScreen').textContent = '読み込みに失敗しました: ' + err.message;
   }
 }
 
-if (!legislatorId) {
+if (!idParam) {
   renderPicker();
 } else {
   boot();
