@@ -1,0 +1,545 @@
+<title>議員関係DB 詳細</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f6f4ec;
+    --surface: #fbfaf6;
+    --surface-2: #efebe0;
+    --surface-3: #e6e1d2;
+    --border: #ddd6c5;
+    --ink: #23211c;
+    --ink-soft: #6b6656;
+    --ink-faint: #9c9686;
+    --accent: #2b3a5c;
+    --accent-soft: #dce1ec;
+    --accent-strong: #1c2740;
+    --seal: #a8402f;
+    --seal-soft: #f0ded9;
+    --good: #55755b;
+    --good-soft: #e2e9de;
+    --gold: #93731f;
+    --gold-soft: #efe6cd;
+    --shadow: 0 1px 2px rgba(35,33,28,0.06), 0 6px 20px rgba(35,33,28,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --bg: #17191c; --surface: #1e2124; --surface-2: #262a2e; --surface-3: #2d3237;
+      --border: #383d43; --ink: #e8e6de; --ink-soft: #aaa598; --ink-faint: #726d61;
+      --accent: #8ea0cc; --accent-soft: #29344a; --accent-strong: #b7c4e2;
+      --seal: #d9866f; --seal-soft: #3a2620; --good: #8fbb94; --good-soft: #26332a;
+      --gold: #cbab5c; --gold-soft: #362f1c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17191c; --surface: #1e2124; --surface-2: #262a2e; --surface-3: #2d3237;
+    --border: #383d43; --ink: #e8e6de; --ink-soft: #aaa598; --ink-faint: #726d61;
+    --accent: #8ea0cc; --accent-soft: #29344a; --accent-strong: #b7c4e2;
+    --seal: #d9866f; --seal-soft: #3a2620; --good: #8fbb94; --good-soft: #26332a;
+    --gold: #cbab5c; --gold-soft: #362f1c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f4ec; --surface: #fbfaf6; --surface-2: #efebe0; --surface-3: #e6e1d2;
+    --border: #ddd6c5; --ink: #23211c; --ink-soft: #6b6656; --ink-faint: #9c9686;
+    --accent: #2b3a5c; --accent-soft: #dce1ec; --accent-strong: #1c2740;
+    --seal: #a8402f; --seal-soft: #f0ded9; --good: #55755b; --good-soft: #e2e9de;
+    --gold: #93731f; --gold-soft: #efe6cd;
+    --shadow: 0 1px 2px rgba(35,33,28,0.06), 0 6px 20px rgba(35,33,28,0.05);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "YuGothic","Yu Gothic Medium","Hiragino Kaku Gothic ProN","Meiryo",system-ui,sans-serif;
+    font-size: 14.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: "YuMincho","Yu Mincho Medium","Hiragino Mincho ProN","MS PMincho",serif; }
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  .app { max-width: 1180px; margin: 0 auto; padding: 0 20px 64px; }
+
+  .topbar { display: flex; align-items: center; gap: 18px; padding: 16px 20px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
+  .topbar .brand { display: flex; align-items: baseline; gap: 10px; flex-shrink: 0; text-decoration: none; color: inherit; }
+  .brand .mark {
+    width: 28px; height: 28px; border-radius: 3px; background: var(--accent); color: var(--surface);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+    font-family: "YuMincho","Yu Mincho Medium",serif;
+  }
+  .brand .name { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
+  .crumb { color: var(--ink-faint); font-size: 12.5px; white-space: nowrap; }
+  .crumb a { color: var(--ink-faint); text-decoration: none; }
+  .crumb a:hover { text-decoration: underline; }
+  .crumb b { color: var(--ink-soft); font-weight: 500; }
+
+  .layout { display: grid; grid-template-columns: 220px 1fr; gap: 26px; align-items: start; }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+  .sidebar { position: sticky; top: 16px; }
+  .sidebar .label { font-size: 11px; letter-spacing: .08em; color: var(--ink-faint); text-transform: uppercase; margin: 0 0 8px 2px; }
+  .sort-select { width: 100%; margin-bottom: 10px; font: inherit; font-size: 12.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+  .sort-hint { font-size: 11px; color: var(--ink-faint); margin: -4px 0 10px 2px; }
+  .nav-list { display: flex; flex-direction: column; gap: 2px; max-height: 70vh; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; border: 1px solid transparent; text-decoration: none; color: inherit; }
+  .nav-item .avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; background: var(--accent-soft); color: var(--accent-strong);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; font-family: "YuMincho","Yu Mincho Medium",serif;
+  }
+  .nav-item .ntext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .nav-item .n1 { font-size: 13px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-item .n2 { font-size: 11px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-item.active { background: var(--accent-soft); border-color: var(--border); }
+  .nav-item.active .n1 { color: var(--accent-strong); font-weight: 600; }
+  .sidebar .note { margin-top: 14px; font-size: 11.5px; color: var(--ink-faint); padding: 0 2px; }
+
+  .dossier { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  .dossier-head { display: flex; justify-content: space-between; gap: 20px; padding: 24px 26px 20px; border-bottom: 1px solid var(--border); }
+  .dossier-head .identity { display: flex; gap: 16px; min-width: 0; }
+  .photo {
+    flex-shrink: 0; width: 64px; height: 64px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong);
+    display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);
+  }
+  .dossier-head .who .name { font-size: 26px; font-weight: 500; }
+  .dossier-head .who .sub { margin-top: 4px; font-size: 13.5px; color: var(--ink-soft); }
+  .badges { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 3px 9px; border-radius: 100px; border: 1px solid var(--border); color: var(--ink-soft); font-weight: 500; letter-spacing: .01em; }
+  .badge.b-type { background: var(--accent-soft); color: var(--accent-strong); border-color: transparent; }
+  .badge.b-cat { background: var(--surface-2); }
+  .badge.b-open { background: var(--good-soft); color: var(--good); border-color: transparent; }
+
+  .gap-stat { flex-shrink: 0; min-width: 130px; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); text-align: center; }
+  .gap-stat .lbl { font-size: 10.5px; letter-spacing: .05em; color: var(--ink-faint); text-transform: uppercase; }
+  .gap-stat .num { font-size: 24px; font-weight: 700; margin-top: 2px; }
+  .gap-stat .status { font-size: 11.5px; font-weight: 600; margin-top: 3px; color: var(--good); }
+  .gap-stat.warn { border-color: var(--gold); background: var(--gold-soft); }
+  .gap-stat.warn .status { color: var(--gold); }
+  .gap-stat.alert { border-color: var(--seal); background: var(--seal-soft); }
+  .gap-stat.alert .status { color: var(--seal); }
+
+  .quality-banner {
+    margin: 18px 26px 0; padding: 10px 14px; border-radius: 8px; background: var(--gold-soft); border: 1px solid var(--gold);
+    color: var(--ink-soft); font-size: 12px; line-height: 1.7;
+  }
+  .quality-banner b { color: var(--gold); }
+
+  .field-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 18px; }
+  @media (max-width: 640px) { .field-grid { grid-template-columns: 1fr; } }
+  .field-group { padding: 18px 26px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .field-group.nb-r { border-right: none; }
+  .field-group.span2 { grid-column: span 2; }
+  .field-group .fg-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 13px; }
+  .kv .k { color: var(--ink-faint); flex-shrink: 0; }
+  .kv .v { text-align: right; color: var(--ink); }
+  .kv.memo-row { flex-direction: column; align-items: stretch; gap: 4px; padding-top: 6px; }
+  .kv.memo-row .v { text-align: right; color: var(--ink-soft); font-size: 12.5px; line-height: 1.7; }
+  .seal-yes { color: var(--good); font-weight: 600; }
+  .seal-no { color: var(--ink-faint); }
+
+  .hist-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 34px 0 14px; flex-wrap: wrap; }
+  .hist-head h2 { font-size: 18px; font-weight: 500; }
+  .hist-head .hint { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+
+  .hist-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 5px 12px; border-radius: 100px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); cursor: pointer; user-select: none; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+
+  .add-btn {
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--surface); background: var(--accent);
+    border: none; border-radius: 7px; padding: 7px 14px; cursor: pointer; flex-shrink: 0;
+  }
+  .add-btn:hover { background: var(--accent-strong); }
+  .add-btn:disabled { opacity: .6; cursor: default; }
+
+  .add-form {
+    display: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 20px;
+  }
+  .add-form.open { display: block; }
+  .add-form .fg-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+  .add-form .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+  @media (max-width: 700px) { .add-form .row { grid-template-columns: 1fr 1fr; } }
+  .add-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-faint); }
+  .add-form input, .add-form select, .add-form textarea {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 9px;
+  }
+  .add-form .memo-row { display: block; margin-bottom: 12px; }
+  .add-form .memo-row textarea { width: 100%; resize: vertical; min-height: 44px; }
+  .add-form .actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .add-form .btn-secondary {
+    font: inherit; font-size: 12.5px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 7px; padding: 7px 14px; cursor: pointer;
+  }
+  .field-hidden { display: none !important; }
+  .add-form .hint { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+  .add-form .err { font-size: 12px; color: var(--seal); }
+
+  .ledger { position: relative; padding-left: 2px; }
+  .ledger::before { content: ""; position: absolute; left: 84px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+  @media (max-width: 560px) { .ledger::before { left: 58px; } }
+  .entry { position: relative; display: grid; grid-template-columns: 84px 1fr; gap: 18px; padding: 14px 0; border-bottom: 1px dashed var(--border); }
+  @media (max-width: 560px) { .entry { grid-template-columns: 58px 1fr; gap: 10px; } }
+  .entry:last-child { border-bottom: none; }
+  .entry.is-hidden { display: none; }
+  .entry .date { font-size: 12.5px; color: var(--ink-soft); padding-top: 2px; text-align: right; position: relative; }
+  .entry .date::after { content: ""; position: absolute; right: -19px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+  @media (max-width: 560px) { .entry .date::after { right: -14px; } }
+  .entry .content { min-width: 0; }
+  .entry .row1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .type-chip { font-size: 11px; padding: 2px 8px; border-radius: 5px; font-weight: 600; letter-spacing: .01em; }
+  .type-chip.面談 { background: var(--accent-soft); color: var(--accent-strong); }
+  .type-chip.贈答 { background: var(--gold-soft); color: var(--gold); }
+  .type-chip.セミナー献金（パーティー券購入） { background: var(--gold-soft); color: var(--gold); }
+  .who-did { font-size: 12.5px; color: var(--ink-faint); }
+  .entry .memo { font-size: 13.5px; color: var(--ink); }
+
+  .empty-state { padding: 30px 16px; text-align: center; color: var(--ink-faint); font-size: 12.5px; }
+  .loading-state { padding: 60px 16px; text-align: center; color: var(--ink-faint); font-size: 13px; }
+
+  .foot-note { margin-top: 28px; padding: 12px 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--ink-faint); }
+</style>
+
+<div class="app">
+  <div class="topbar">
+    <a class="brand" href="index.html">
+      <div class="mark">議</div>
+      <div class="name">議員関係DB</div>
+    </a>
+    <div class="crumb"><a href="index.html">全体サマリ</a> &nbsp;›&nbsp; <b id="crumbName">議員詳細</b></div>
+  </div>
+
+  <div id="loadingScreen" class="loading-state">読み込み中…</div>
+  <div id="appRoot" class="layout" style="display:none;">
+    <div class="sidebar">
+      <div class="label">議員一覧（関係マスタ登録者）</div>
+      <select class="sort-select" id="sidebarSort">
+        <option value="party" selected>同党の議員（既定）</option>
+        <option value="kana">五十音順</option>
+      </select>
+      <div class="sort-hint" id="sortHint"></div>
+      <div class="nav-list" id="navList"></div>
+      <div class="note">個別ページがあるのは「関係マスタ」に登録された議員のみです。</div>
+    </div>
+
+    <div class="main">
+      <div class="dossier">
+        <div class="dossier-head">
+          <div class="identity">
+            <div class="photo" title="顔写真は未登録">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="4"></circle><path d="M4 20c0-4.2 3.6-6.4 8-6.4s8 2.2 8 6.4"></path></svg>
+            </div>
+            <div class="who">
+              <div class="name serif" id="hName"></div>
+              <div class="sub" id="hSub"></div>
+              <div class="badges" id="hBadges"></div>
+            </div>
+          </div>
+          <div class="gap-stat" id="gapStat">
+            <div class="lbl">最終面談から</div>
+            <div class="num tnum" id="gapDays">—</div>
+            <div class="status" id="gapStatus"></div>
+          </div>
+        </div>
+
+        <div id="qualityBanner"></div>
+
+        <div class="field-grid">
+          <div class="field-group" id="fgBasic"></div>
+          <div class="field-group" id="fgCurrent"></div>
+          <div class="field-group nb-r" id="fgSeminar"></div>
+          <div class="field-group" id="fgInternal"></div>
+          <div class="field-group span2 nb-r" id="fgLastContact"></div>
+          <div class="field-group" id="fgDomain"></div>
+          <div class="field-group" id="fgServer"></div>
+          <div class="field-group nb-r" id="fgSsl"></div>
+        </div>
+      </div>
+
+      <div class="hist-head">
+        <div>
+          <h2>接触履歴</h2>
+          <div class="hint">面談・贈答・セミナー献金（パーティー券購入）を1本のタイムラインで表示します</div>
+        </div>
+      </div>
+
+      <div class="hist-toolbar">
+        <div class="chip-row" id="typeChips">
+          <span class="chip active" data-type="all">すべて</span>
+          <span class="chip" data-type="面談">面談</span>
+          <span class="chip" data-type="贈答">贈答</span>
+          <span class="chip" data-type="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</span>
+        </div>
+        <button class="add-btn" id="addToggle" type="button">＋ 履歴を追加</button>
+      </div>
+
+      <div class="add-form" id="addForm">
+        <div class="fg-title">履歴を追加</div>
+        <div class="row">
+          <label>種別
+            <select id="f-type">
+              <option value="面談">面談</option>
+              <option value="贈答">贈答</option>
+              <option value="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</option>
+            </select>
+          </label>
+          <label>日付
+            <input type="date" id="f-date" />
+          </label>
+          <label id="f-amount-label" class="field-hidden">金額（円）
+            <input type="number" id="f-amount" placeholder="200000" />
+          </label>
+        </div>
+        <label class="memo-row">内容
+          <textarea id="f-content" placeholder="例：新サービスの規制対応について意見交換／議員会館第一議員会館にて"></textarea>
+        </label>
+        <label class="memo-row">備考
+          <textarea id="f-note" placeholder="任意"></textarea>
+        </label>
+        <div class="actions">
+          <span class="err" id="addErr"></span>
+          <button class="btn-secondary" id="addCancel" type="button">キャンセル</button>
+          <button class="add-btn" id="addSubmit" type="button">追加する</button>
+        </div>
+      </div>
+
+      <div class="ledger" id="ledger"></div>
+
+      <div class="foot-note">
+        ※ パーティー券購入・贈答・面談の初回データはCSV一括登録によるものです。以降の追加はこのページの「＋履歴を追加」からNotionへ書き込まれます。<br>
+        ※ ニュースは現在RSS連携が未整備のため、このタイムラインには含まれていません（整備後に反映予定）。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="gas-client.js"></script>
+<script>
+var AVATAR_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="4"></circle><path d="M4 20c0-4.2 3.6-6.4 8-6.4s8 2.2 8 6.4"></path></svg>';
+
+var qs = new URLSearchParams(location.search);
+var legislatorId = qs.get('id');
+
+var STATE = { relations: [], allRows: [], activeRelation: null, activeAllRow: null, contacts: [], qualityNotes: [], activeType: 'all' };
+
+function fmtYen(n){ return (n||0).toLocaleString('ja-JP') + '円'; }
+
+async function boot(){
+  try {
+    var relations = await GasClient.call('listRelations');
+    STATE.relations = relations;
+    var rel = relations.filter(function(r){ return r.legislatorId === legislatorId; })[0];
+    if (!rel) {
+      document.getElementById('loadingScreen').textContent = '指定された議員（id=' + legislatorId + '）は関係マスタに見つかりません。';
+      return;
+    }
+    STATE.activeRelation = rel;
+
+    var allRows = await GasClient.call('listAll');
+    STATE.allRows = allRows;
+    STATE.activeAllRow = allRows.filter(function(r){ return r.id === rel.allMasterId; })[0] || null;
+
+    var contacts = await GasClient.call('getContacts', { relationPageId: rel.id });
+    STATE.contacts = contacts;
+    var qualityNotes = await GasClient.call('getQualityNotes', { relationPageId: rel.id });
+    STATE.qualityNotes = qualityNotes;
+
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'grid';
+    document.getElementById('crumbName').textContent = rel.name;
+    document.title = rel.name + ' — 議員関係DB';
+
+    renderSidebar('party');
+    renderDossier();
+    renderQualityBanner();
+    renderLedger();
+  } catch (err) {
+    document.getElementById('loadingScreen').textContent = '読み込みに失敗しました: ' + err.message;
+  }
+}
+
+function renderSidebar(mode){
+  var active = STATE.activeRelation;
+  var list = STATE.relations.slice();
+  if (mode === 'party') list = list.filter(function(r){ return r.party === active.party; });
+  list.sort(function(a,b){ return a.name.localeCompare(b.name, 'ja'); });
+  var navList = document.getElementById('navList');
+  navList.innerHTML = list.map(function(r){
+    var isActive = r.legislatorId === active.legislatorId ? ' active' : '';
+    var sub = mode === 'party' ? (r.house||'') + '・' + (r.district||'') : r.party + '・' + (r.house||'');
+    return '<a class="nav-item' + isActive + '" href="detail.html?id=' + encodeURIComponent(r.legislatorId) + '">' +
+      '<span class="avatar">' + AVATAR_ICON + '</span>' +
+      '<span class="ntext"><span class="n1">' + r.name + '</span><span class="n2">' + sub + '</span></span>' +
+      '</a>';
+  }).join('');
+  document.getElementById('sortHint').textContent = mode === 'party'
+    ? '政党単位で状況を比較する場面を想定した並びです'
+    : '名簿から探す場面を想定した並びです';
+}
+document.getElementById('sidebarSort').addEventListener('change', function(e){ renderSidebar(e.target.value); });
+
+function kv(k, v, cls){ return '<div class="kv' + (cls?(' '+cls):'') + '"><span class="k">'+k+'</span><span class="v'+(cls==='memo-row'?'':'')+'">'+ (v || '—') +'</span></div>'; }
+
+function renderDossier(){
+  var rel = STATE.activeRelation;
+  var all = STATE.activeAllRow;
+
+  document.getElementById('hName').textContent = rel.name;
+  document.getElementById('hSub').textContent = [rel.party, rel.house, rel.district].filter(Boolean).join(' ／ ');
+  document.getElementById('hBadges').innerHTML =
+    '<span class="badge b-type">議院：'+(rel.house||'不明')+'</span>' +
+    '<span class="badge b-cat">政党：'+(rel.party||'不明')+'</span>' +
+    (all ? '<span class="badge b-open">Web公開情報：取得済</span>' : '<span class="badge">現職サイト：対象外（引退／落選）</span>');
+
+  document.getElementById('fgBasic').innerHTML =
+    '<div class="fg-title">基本情報</div>' +
+    kv('議院', rel.house) + kv('政党', rel.party) + kv('選挙区', rel.district) +
+    (rel.factionNotes ? kv('派閥・備考', rel.factionNotes) : '');
+
+  document.getElementById('fgCurrent').innerHTML =
+    '<div class="fg-title">現状</div>' +
+    kv('現職役職', rel.currentPost) + kv('選挙結果', rel.electionResult);
+
+  var seminarContacts = STATE.contacts.filter(function(c){ return c.type === 'セミナー献金（パーティー券購入）'; });
+  var seminarTotal = seminarContacts.reduce(function(s,c){ return s + (c.amount||0); }, 0);
+  var seminarLatest = seminarContacts.map(function(c){ return c.date; }).filter(Boolean).sort().slice(-1)[0];
+  document.getElementById('fgSeminar').innerHTML =
+    '<div class="fg-title">セミナー献金（パーティー券購入・累計）</div>' +
+    kv('累計金額', fmtYen(seminarTotal)) + kv('回数', seminarContacts.length + '回') + kv('直近日', seminarLatest);
+
+  document.getElementById('fgInternal').innerHTML =
+    '<div class="fg-title">社内担当</div>' +
+    kv('担当', rel.internalContact) + kv('代表名で贈るか', rel.giftInRepName);
+
+  var meetings = STATE.contacts.filter(function(c){ return c.type === '面談' && c.date; }).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  var last = meetings[0];
+  document.getElementById('fgLastContact').innerHTML =
+    '<div class="fg-title">最終接触（面談ベース）</div>' +
+    kv('最終面談日', last ? last.date : '記録なし') +
+    kv('内容', last ? last.content : '') +
+    (last && last.note ? kv('備考', last.note, 'memo-row') : '');
+
+  if (all) {
+    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService);
+    document.getElementById('fgServer').innerHTML = '<div class="fg-title">サーバー</div>' + kv('会社', all.serverCompany) + kv('サービス', all.serverService);
+    document.getElementById('fgSsl').innerHTML = '<div class="fg-title">SSL</div>' + kv('ベンダー', all.sslVendor) +
+      '<div class="kv"><span class="k">サイトシール</span><span class="v ' + (all.siteSeal==='サイトシール有'?'seal-yes':'seal-no') + '">' + (all.siteSeal||'—').replace('サイトシール','') + '</span></div>';
+  } else {
+    ['fgDomain','fgServer','fgSsl'].forEach(function(id, i){
+      var titles = ['ドメイン','サーバー','SSL'];
+      document.getElementById(id).innerHTML = '<div class="fg-title">'+titles[i]+'</div><div style="color:var(--ink-faint); font-size:12.5px;">現職サイトなし（引退／落選のため対象外）</div>';
+    });
+  }
+
+  var gapStat = document.getElementById('gapStat');
+  if (last) {
+    var diffDays = Math.round((new Date() - new Date(last.date)) / 86400000);
+    document.getElementById('gapDays').textContent = diffDays + '日';
+    gapStat.classList.remove('warn','alert');
+    var statusEl = document.getElementById('gapStatus');
+    if (diffDays <= 120) statusEl.textContent = '順調';
+    else if (diffDays <= 240) { gapStat.classList.add('warn'); statusEl.textContent = '要フォロー'; }
+    else { gapStat.classList.add('alert'); statusEl.textContent = '要対応'; }
+  } else {
+    document.getElementById('gapDays').textContent = '—';
+    document.getElementById('gapStatus').textContent = '面談記録なし';
+  }
+}
+
+function renderQualityBanner(){
+  var el = document.getElementById('qualityBanner');
+  if (!STATE.qualityNotes.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="quality-banner"><b>⚠ データ品質メモ（' + STATE.qualityNotes.length + '件）</b><br>' +
+    STATE.qualityNotes.map(function(n){ return '・[' + n.item + '] ' + n.content; }).join('<br>') + '</div>';
+}
+
+function renderLedger(){
+  var el = document.getElementById('ledger');
+  var rows = STATE.contacts.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  if (STATE.activeType !== 'all') rows = rows.filter(function(c){ return c.type === STATE.activeType; });
+  if (!rows.length) { el.innerHTML = '<div class="empty-state">該当する履歴がありません</div>'; return; }
+  el.innerHTML = rows.map(function(c){
+    var amountLine = c.amount ? '　金額：' + fmtYen(c.amount) : '';
+    return '<div class="entry" data-type="' + c.type + '">' +
+      '<div class="date tnum">' + (c.date || 'ー') + '</div>' +
+      '<div class="content">' +
+        '<div class="row1"><span class="type-chip ' + c.type + '">' + c.type + '</span></div>' +
+        '<div class="memo">' + (c.content || '') + amountLine + (c.note ? '　' + c.note : '') + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+document.querySelectorAll('#typeChips .chip').forEach(function(chip){
+  chip.addEventListener('click', function(){
+    document.querySelectorAll('#typeChips .chip').forEach(function(c){ c.classList.remove('active'); });
+    chip.classList.add('active');
+    STATE.activeType = chip.getAttribute('data-type');
+    renderLedger();
+  });
+});
+
+var addToggle = document.getElementById('addToggle');
+var addForm = document.getElementById('addForm');
+var fType = document.getElementById('f-type');
+var fAmountLabel = document.getElementById('f-amount-label');
+
+function syncFormFields(){
+  fAmountLabel.classList.toggle('field-hidden', fType.value === '面談');
+}
+fType.addEventListener('change', syncFormFields);
+addToggle.addEventListener('click', function(){
+  addForm.classList.toggle('open');
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  syncFormFields();
+});
+document.getElementById('addCancel').addEventListener('click', function(){ addForm.classList.remove('open'); });
+
+document.getElementById('addSubmit').addEventListener('click', async function(){
+  var btn = this;
+  var errEl = document.getElementById('addErr');
+  errEl.textContent = '';
+  var type = fType.value;
+  var date = document.getElementById('f-date').value;
+  var content = document.getElementById('f-content').value.trim();
+  var note = document.getElementById('f-note').value.trim();
+  var amount = document.getElementById('f-amount').value;
+  if (!content) { errEl.textContent = '内容を入力してください'; return; }
+
+  btn.disabled = true;
+  try {
+    await GasClient.call('addContact', {
+      relationPageId: STATE.activeRelation.id,
+      type: type,
+      date: date,
+      content: content,
+      note: note,
+      summary: type + '：' + STATE.activeRelation.name + ' ' + content.slice(0,20),
+      amount: (type !== '面談' && amount) ? amount : undefined
+    });
+    STATE.contacts = await GasClient.call('getContacts', { relationPageId: STATE.activeRelation.id });
+    renderDossier();
+    renderLedger();
+    document.getElementById('f-content').value = '';
+    document.getElementById('f-note').value = '';
+    document.getElementById('f-amount').value = '';
+    addForm.classList.remove('open');
+  } catch (err) {
+    errEl.textContent = '保存に失敗しました: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+if (!legislatorId) {
+  document.getElementById('loadingScreen').textContent = 'URLに ?id=<legislator_id> を指定してください（例: detail.html?id=L001）';
+} else {
+  boot();
+}
+</script>
