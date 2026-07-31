@@ -52,30 +52,41 @@
   <div class="shell-brand">議員関係DB</div>
   <button class="shell-tab active" data-tab="summary" id="tabSummary">全体サマリ</button>
   <button class="shell-tab" data-tab="detail" id="tabDetail">個別ページ</button>
+  <button class="shell-tab" data-tab="bulk" id="tabBulk">一括追加</button>
 </div>
 <div class="shell-body">
   <iframe class="shell-frame active" id="frameSummary" src="summary.html"></iframe>
   <iframe class="shell-frame" id="frameDetail"></iframe>
+  <iframe class="shell-frame" id="frameBulk"></iframe>
 </div>
 
 <script>
 var frameSummary = document.getElementById('frameSummary');
 var frameDetail = document.getElementById('frameDetail');
+var frameBulk = document.getElementById('frameBulk');
 var tabSummary = document.getElementById('tabSummary');
 var tabDetail = document.getElementById('tabDetail');
+var tabBulk = document.getElementById('tabBulk');
 var detailLoaded = false;
+var bulkLoaded = false;
 
 function activateTab(name){
   tabSummary.classList.toggle('active', name === 'summary');
   tabDetail.classList.toggle('active', name === 'detail');
+  tabBulk.classList.toggle('active', name === 'bulk');
   frameSummary.classList.toggle('active', name === 'summary');
   frameDetail.classList.toggle('active', name === 'detail');
+  frameBulk.classList.toggle('active', name === 'bulk');
 }
 
 tabSummary.addEventListener('click', function(){ activateTab('summary'); });
 tabDetail.addEventListener('click', function(){
   if (!detailLoaded) { frameDetail.src = 'detail.html'; detailLoaded = true; }
   activateTab('detail');
+});
+tabBulk.addEventListener('click', function(){
+  if (!bulkLoaded) { frameBulk.src = 'bulk.html'; bulkLoaded = true; }
+  activateTab('bulk');
 });
 
 window.addEventListener('message', function(ev){

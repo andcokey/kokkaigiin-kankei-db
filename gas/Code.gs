@@ -67,6 +67,9 @@ function handle(e) {
       case 'createRelation':
         result = createRelation(params);
         break;
+      case 'bulkImport':
+        result = bulkImport(params);
+        break;
       default:
         return jsonOut({ ok: false, error: '不明なaction: ' + action });
     }
@@ -111,13 +114,21 @@ function notionFetch(path, method, payload) {
     muteHttpExceptions: true
   };
   if (payload) options.payload = JSON.stringify(payload);
-  var resp = UrlFetchApp.fetch('https://api.notion.com/v1/' + path, options);
-  var code = resp.getResponseCode();
-  var body = JSON.parse(resp.getContentText());
-  if (code >= 300) {
-    throw new Error('Notion API error ' + code + ': ' + (body.message || resp.getContentText()));
+
+  var maxRetries = 3;
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
+    var resp = UrlFetchApp.fetch('https://api.notion.com/v1/' + path, options);
+    var code = resp.getResponseCode();
+    if (code === 429 && attempt < maxRetries) {
+      Utilities.sleep(800 * (attempt + 1)); // レート制限: 一括インポート等の連続呼び出しで発生しうる
+      continue;
+    }
+    var body = JSON.parse(resp.getContentText());
+    if (code >= 300) {
+      throw new Error('Notion API error ' + code + ': ' + (body.message || resp.getContentText()));
+    }
+    return body;
   }
-  return body;
 }
 
 function notionQueryAll(dataSourceId, filter, sorts) {
@@ -284,14 +295,14 @@ function buildPropertyPayload(type, value) {
   }
 }
 
-function buildUpdateProperties(fieldMap, editableTypes, params) {
+function buildUpdateProperties(fieldMap, editableTypes, params, required) {
   var properties = {};
   for (var key in editableTypes) {
     if (params[key] !== undefined) {
       properties[fieldMap[key]] = buildPropertyPayload(editableTypes[key], params[key]);
     }
   }
-  if (!Object.keys(properties).length) throw new Error('更新する項目がありません');
+  if (required !== false && !Object.keys(properties).length) throw new Error('更新する項目がありません');
   return properties;
 }
 
@@ -317,7 +328,7 @@ function updateRelation(params) {
 
 /**
  * 議員マスタ（全体）の議員を関係マスタに新規登録する
- * params: allMasterId, name(氏名), party(政党), house(議院), district(選挙区)
+ * params: allMasterId, name(氏名), party(政党), house(議院), district(選挙区), currentPost(現職役職, optional)
  * legislator_id は既存の最大値+1を自動採番する
  */
 function nextLegislatorId(existingIds) {
@@ -345,7 +356,7 @@ function createRelation(params) {
     'legislator_id': { rich_text: [{ text: { content: legislatorId } }] },
     '議員マスタ（全体）': { relation: [{ id: params.allMasterId }] }
   };
-  ['party', 'house', 'district'].forEach(function (key) {
+  ['party', 'house', 'district', 'currentPost'].forEach(function (key) {
     properties[RELATION_FIELDS[key]] = { rich_text: [{ text: { content: String(params[key] || '') } }] };
   });
 
@@ -377,4 +388,109 @@ function deleteContact(params) {
   if (!params.contactPageId) throw new Error('contactPageId が必要です');
   notionFetch('pages/' + params.contactPageId, 'patch', { archived: true });
   return { id: params.contactPageId, archived: true };
+}
+
+/* ---------------- 一括インポート（CSV） ---------------- */
+
+var BULK_RELATION_FIELD_KEYS = [
+  'house', 'party', 'district', 'currentPost', 'electionResult', 'factionNotes',
+  'internalContact', 'giftInRepName', 'zip', 'address', 'phone', 'note1', 'note2Url'
+];
+
+/**
+ * CSVの1行から関係マスタを解決する（legislator_id優先、なければ氏名で既存関係／議員マスタ全体を検索）。
+ * 該当する関係マスタが無く議員マスタ全体に一意に一致する場合は新規登録する。
+ */
+function resolveRelationForBulkRow(row, relations, allRows) {
+  if (row.legislatorId) {
+    var byId = relations.filter(function (r) { return r.legislatorId === row.legislatorId; })[0];
+    if (!byId) throw new Error('legislator_id "' + row.legislatorId + '" が関係マスタに見つかりません');
+    return { id: byId.id, name: byId.name, legislatorId: byId.legislatorId, created: false, relations: relations };
+  }
+
+  if (!row.name) throw new Error('氏名またはlegislator_idが必要です');
+
+  var byName = relations.filter(function (r) { return r.name === row.name; })[0];
+  if (byName) {
+    return { id: byName.id, name: byName.name, legislatorId: byName.legislatorId, created: false, relations: relations };
+  }
+
+  var matches = allRows.filter(function (r) { return r.name === row.name; });
+  if (!matches.length) throw new Error('氏名 "' + row.name + '" が議員マスタ（全体）に見つかりません');
+  if (matches.length > 1) throw new Error('氏名 "' + row.name + '" が複数該当し一意に決定できません（legislator_idで指定してください）');
+  var allRow = matches[0];
+
+  var created = createRelation({
+    allMasterId: allRow.id,
+    name: row.name,
+    party: row.party || allRow.party,
+    house: row.house || allRow.house,
+    district: row.district || allRow.district,
+    currentPost: row.currentPost || allRow.currentPost
+  });
+
+  var newRel = {
+    id: created.id, name: row.name, legislatorId: created.legislatorId,
+    party: row.party || allRow.party, house: row.house || allRow.house, district: row.district || allRow.district,
+    allMasterId: allRow.id
+  };
+  return { id: created.id, name: row.name, legislatorId: created.legislatorId, created: true, relations: relations.concat([newRel]) };
+}
+
+/**
+ * CSVから一括で「関係マスタへの新規登録／項目更新」「接触履歴の追加」を行う。
+ * params: rows = [{ legislatorId, name, house, party, district, currentPost, electionResult,
+ *                    factionNotes, internalContact, giftInRepName, zip, address, phone, note1, note2Url,
+ *                    type, date, content, note, amount }, ...]
+ * 各項目は空欄（''）なら「変更しない」扱い（既存値を保持）。type欄が空欄の行は接触履歴を追加しない。
+ * 1行の失敗は他の行に影響せず、結果は行ごとにerrorとして返す。
+ */
+function bulkImport(params) {
+  if (!params.rows || !params.rows.length) throw new Error('rowsが必要です');
+
+  var relations = listRelations();
+  var allRows = listLegislatorsAll();
+  var results = [];
+
+  params.rows.forEach(function (row, idx) {
+    var rowNo = idx + 1;
+    var displayName = row.name || row.legislatorId || ('行' + rowNo);
+    try {
+      var resolved = resolveRelationForBulkRow(row, relations, allRows);
+      relations = resolved.relations;
+
+      var nonEmptyRow = {};
+      BULK_RELATION_FIELD_KEYS.forEach(function (key) {
+        if (row[key] !== undefined && row[key] !== '') nonEmptyRow[key] = row[key];
+      });
+      var updateProps = buildUpdateProperties(RELATION_FIELDS, RELATION_EDITABLE_TYPES, nonEmptyRow, false);
+      if (Object.keys(updateProps).length) {
+        notionFetch('pages/' + resolved.id, 'patch', { properties: updateProps });
+      }
+
+      var contactAdded = false;
+      if (row.type) {
+        addContact({
+          relationPageId: resolved.id,
+          type: row.type,
+          date: row.date,
+          content: row.content,
+          note: row.note,
+          amount: row.amount,
+          summary: row.type + '：' + resolved.name + ' ' + String(row.content || '').slice(0, 20)
+        });
+        contactAdded = true;
+      }
+
+      results.push({
+        row: rowNo, name: resolved.name, legislatorId: resolved.legislatorId,
+        created: resolved.created, updated: Object.keys(updateProps).length > 0,
+        contactAdded: contactAdded, error: null
+      });
+    } catch (err) {
+      results.push({ row: rowNo, name: displayName, error: String(err.message || err) });
+    }
+  });
+
+  return { results: results };
 }

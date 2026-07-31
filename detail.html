@@ -523,7 +523,8 @@ async function registerRelation(){
       name: STATE.person.name,
       party: STATE.person.party,
       house: STATE.person.house,
-      district: STATE.person.district
+      district: STATE.person.district,
+      currentPost: STATE.activeAllRow.currentPost
     });
     location.reload();
   } catch (err) {

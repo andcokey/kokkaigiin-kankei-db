@@ -1,0 +1,413 @@
+<meta charset="utf-8" />
+<title>議員関係DB 一括追加</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f6f4ec; --surface: #fbfaf6; --surface-2: #efebe0; --surface-3: #e6e1d2;
+    --border: #ddd6c5; --ink: #23211c; --ink-soft: #6b6656; --ink-faint: #9c9686;
+    --accent: #2b3a5c; --accent-soft: #dce1ec; --accent-strong: #1c2740;
+    --seal: #a8402f; --seal-soft: #f0ded9; --good: #55755b; --good-soft: #e2e9de;
+    --gold: #93731f; --gold-soft: #efe6cd;
+    --shadow: 0 1px 2px rgba(35,33,28,0.06), 0 6px 20px rgba(35,33,28,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --bg: #17191c; --surface: #1e2124; --surface-2: #262a2e; --surface-3: #2d3237;
+      --border: #383d43; --ink: #e8e6de; --ink-soft: #aaa598; --ink-faint: #726d61;
+      --accent: #8ea0cc; --accent-soft: #29344a; --accent-strong: #b7c4e2;
+      --seal: #d9866f; --seal-soft: #3a2620; --good: #8fbb94; --good-soft: #26332a;
+      --gold: #cbab5c; --gold-soft: #362f1c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17191c; --surface: #1e2124; --surface-2: #262a2e; --surface-3: #2d3237;
+    --border: #383d43; --ink: #e8e6de; --ink-soft: #aaa598; --ink-faint: #726d61;
+    --accent: #8ea0cc; --accent-soft: #29344a; --accent-strong: #b7c4e2;
+    --seal: #d9866f; --seal-soft: #3a2620; --good: #8fbb94; --good-soft: #26332a;
+    --gold: #cbab5c; --gold-soft: #362f1c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "YuGothic","Yu Gothic Medium","Hiragino Kaku Gothic ProN","Meiryo",system-ui,sans-serif;
+    font-size: 14.5px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 980px; margin: 0 auto; padding: 0 20px 64px; }
+  .topbar { display: flex; align-items: center; gap: 18px; padding: 16px 20px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
+  .topbar .brand { display: flex; align-items: baseline; gap: 10px; flex-shrink: 0; text-decoration: none; color: inherit; }
+  .brand .mark {
+    width: 28px; height: 28px; border-radius: 3px; background: var(--accent); color: var(--surface);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+    font-family: "YuMincho","Yu Mincho Medium",serif;
+  }
+  .brand .name { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
+  .crumb { color: var(--ink-faint); font-size: 12.5px; }
+  .crumb a { color: var(--ink-faint); text-decoration: none; }
+  .crumb a:hover { text-decoration: underline; }
+  .crumb b { color: var(--ink-soft); font-weight: 500; }
+
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+  .lead { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 20px; }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--accent); color: var(--surface); font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .card .desc { color: var(--ink-faint); font-size: 12.5px; margin: 0 0 14px; }
+
+  .add-btn {
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--surface); background: var(--accent);
+    border: none; border-radius: 7px; padding: 8px 16px; cursor: pointer; flex-shrink: 0;
+  }
+  .add-btn:hover { background: var(--accent-strong); }
+  .add-btn:disabled { opacity: .5; cursor: default; }
+  .btn-secondary {
+    font: inherit; font-size: 12.5px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 7px; padding: 8px 16px; cursor: pointer;
+  }
+
+  .col-list { font-size: 12px; color: var(--ink-soft); background: var(--surface-2); border-radius: 8px; padding: 10px 14px; margin: 10px 0 0; }
+  .col-list b { color: var(--ink); }
+
+  input[type="file"] {
+    font: inherit; font-size: 12.5px; color: var(--ink);
+  }
+
+  table.import-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
+  table.import-table th, table.import-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.import-table th { color: var(--ink-faint); font-weight: 600; font-size: 11px; letter-spacing: .02em; }
+  table.import-table td.num { color: var(--ink-faint); width: 30px; }
+  .row-error td { background: var(--seal-soft); }
+  .status-pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 100px; font-weight: 600; }
+  .status-new { background: var(--accent-soft); color: var(--accent-strong); }
+  .status-existing { background: var(--surface-3); color: var(--ink-soft); }
+  .status-error { background: var(--seal-soft); color: var(--seal); }
+  .status-ok { background: var(--good-soft); color: var(--good); }
+  .err-text { color: var(--seal); font-size: 12px; }
+  .muted { color: var(--ink-faint); }
+
+  .summary-line { display: flex; gap: 16px; align-items: center; margin: 12px 0; font-size: 13px; flex-wrap: wrap; }
+  .summary-line .n { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .summary-line .ok .n { color: var(--good); }
+  .summary-line .bad .n { color: var(--seal); }
+
+  .import-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .import-note { font-size: 12px; color: var(--ink-faint); }
+
+  .empty-state { padding: 24px 16px; text-align: center; color: var(--ink-faint); font-size: 12.5px; }
+  .foot-note { margin-top: 4px; padding: 12px 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--ink-faint); }
+</style>
+
+<div class="app">
+  <div class="topbar">
+    <a class="brand" href="index.html" id="brandLink">
+      <div class="mark">議</div>
+      <div class="name">議員関係DB</div>
+    </a>
+    <div class="crumb"><a href="index.html" id="crumbSummaryLink">全体サマリ</a> &nbsp;›&nbsp; <b>一括追加</b></div>
+  </div>
+
+  <h1>CSVで一括追加</h1>
+  <p class="lead">関係マスタへの新規登録・項目更新と、接触履歴（面談・贈答・セミナー献金）の追加を、CSV1枚でまとめて反映できます。大量に入力したい場合にお使いください。</p>
+
+  <div class="card">
+    <h2><span class="step-num">1</span>テンプレートをダウンロード</h2>
+    <p class="desc">記入例入り。1行目はヘッダーなので変更しないでください。記入例行（（記入例）と書かれた行）は削除するか、ご自身のデータに書き換えてください。</p>
+    <button class="add-btn" id="downloadBtn" type="button">テンプレートをダウンロード（CSV）</button>
+    <div class="col-list">
+      <div><b>1行＝1件の出来事</b>です。同じ議員に複数の履歴を追加したい場合は、行を複数に分けてください。</div>
+      <div style="margin-top:6px;"><b>関係マスタ関連の列</b>（legislator_id・氏名・議院・政党・選挙区・現職役職・選挙結果・派閥_備考・社内担当コンタクト・代表名で贈るか・送付先郵便番号・送付先住所・送付先電話番号・備考1・備考2_URL等）：<b>空欄のセルは「変更しない」</b>扱いになります（既存の値は消えません）。</div>
+      <div style="margin-top:6px;"><b>議員の指定方法</b>：<b>legislator_id</b>（例: L001）を入れればそれを優先して使います。空欄の場合は<b>氏名</b>で議員マスタ（全体）・関係マスタを検索し、関係マスタに未登録なら新規登録します。氏名は完全一致で検索するため、表記ゆれ（旧字体など）がある場合はlegislator_idを使ってください。</div>
+      <div style="margin-top:6px;"><b>接触履歴の列</b>（種別・日付・内容・備考・金額_円）：<b>種別が空欄の行は履歴を追加しません</b>（関係マスタの登録・更新のみ行います）。種別は「面談」「贈答」「セミナー献金（パーティー券購入）」のいずれかを入力してください。日付はYYYY-MM-DD形式。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step-num">2</span>記入したCSVを選択</h2>
+    <p class="desc">Excel等で保存したCSV（UTF-8・Shift-JISのどちらでも読み込めます）を選択してください。選択すると自動でプレビューが表示されます。</p>
+    <input type="file" id="csvFile" accept=".csv" />
+    <div id="parseError" class="err-text" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <h2><span class="step-num">3</span>プレビューを確認してインポート</h2>
+    <p class="desc">実行前に内容を確認してください。エラー行は自動的に除外され、有効な行のみインポートされます。</p>
+    <div class="summary-line">
+      <span class="ok">有効: <span class="n" id="validCount">0</span>件</span>
+      <span class="bad">エラー: <span class="n" id="errorCount">0</span>件</span>
+    </div>
+    <div id="previewTableWrap"></div>
+    <div class="import-actions">
+      <button class="add-btn" id="importBtn" type="button">この内容でインポート実行</button>
+      <span class="import-note" id="importNote"></span>
+    </div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <h2>インポート結果</h2>
+    <div class="summary-line">
+      <span class="ok">成功: <span class="n" id="resultOkCount">0</span>件</span>
+      <span class="bad">失敗: <span class="n" id="resultErrCount">0</span>件</span>
+    </div>
+    <div id="resultTableWrap"></div>
+    <div class="foot-note">画面上の一覧（全体サマリ・個別ページ）には反映済みです。各ページを開き直すと最新の内容が表示されます。</div>
+  </div>
+</div>
+
+<script src="gas-client.js"></script>
+<script>
+if (window.parent !== window) {
+  document.getElementById('brandLink').addEventListener('click', function(e){ e.preventDefault(); window.parent.postMessage({ type: 'open-summary' }, '*'); });
+  document.getElementById('crumbSummaryLink').addEventListener('click', function(e){ e.preventDefault(); window.parent.postMessage({ type: 'open-summary' }, '*'); });
+}
+
+var COLUMNS = [
+  { key: 'legislatorId', header: 'legislator_id' },
+  { key: 'name', header: '氏名' },
+  { key: 'house', header: '議院' },
+  { key: 'party', header: '政党' },
+  { key: 'district', header: '選挙区' },
+  { key: 'currentPost', header: '現職役職' },
+  { key: 'electionResult', header: '選挙結果' },
+  { key: 'factionNotes', header: '派閥_備考' },
+  { key: 'internalContact', header: '社内担当コンタクト' },
+  { key: 'giftInRepName', header: '代表名で贈るか' },
+  { key: 'zip', header: '送付先郵便番号' },
+  { key: 'address', header: '送付先住所' },
+  { key: 'phone', header: '送付先電話番号' },
+  { key: 'note1', header: '備考1' },
+  { key: 'note2Url', header: '備考2_URL等' },
+  { key: 'type', header: '種別' },
+  { key: 'date', header: '日付' },
+  { key: 'content', header: '内容' },
+  { key: 'note', header: '備考' },
+  { key: 'amount', header: '金額_円' }
+];
+var CONTACT_TYPES = ['面談', '贈答', 'セミナー献金（パーティー券購入）'];
+
+function sampleRow(vals) {
+  return COLUMNS.map(function (c) { return vals[c.key] || ''; });
+}
+var SAMPLE_ROWS = [
+  sampleRow({ name: '（記入例）山田太郎', house: '衆議院', party: '自民党', district: '東京1区', internalContact: '山田' }),
+  sampleRow({ legislatorId: 'L001', name: '（参考。legislator_id指定時は無視されます）', type: '面談', date: '2026-08-01', content: '意見交換のため訪問' }),
+  sampleRow({ name: '（記入例）鈴木花子', house: '参議院', party: '公明党', district: '比例', type: '贈答', date: '2026-08-01', content: 'お土産（菓子折り）' })
+];
+
+function toCsvField(v) {
+  v = v == null ? '' : String(v);
+  if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+  return v;
+}
+function buildCsv(rows) {
+  return rows.map(function (r) { return r.map(toCsvField).join(','); }).join('\r\n');
+}
+
+document.getElementById('downloadBtn').addEventListener('click', function () {
+  var rows = [COLUMNS.map(function (c) { return c.header; })].concat(SAMPLE_ROWS);
+  var csv = '\uFEFF' + buildCsv(rows);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = '一括追加テンプレート.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  var rows = []; var row = []; var field = ''; var inQuotes = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(function (r) { return !(r.length === 1 && r[0].trim() === ''); });
+}
+
+function readFileSmart(file) {
+  return file.arrayBuffer().then(function (buf) {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch (e) { return new TextDecoder('shift-jis').decode(buf); }
+  });
+}
+
+var STATE = { relations: [], allRows: [], parsedRows: [] };
+
+async function loadMasters() {
+  STATE.relations = await GasClient.call('listRelations');
+  STATE.allRows = await GasClient.call('listAll');
+}
+loadMasters().catch(function (err) {
+  document.getElementById('parseError').textContent = '議員一覧の取得に失敗しました: ' + err.message;
+});
+
+document.getElementById('csvFile').addEventListener('change', function (e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('parseError').textContent = '';
+  document.getElementById('resultCard').style.display = 'none';
+  readFileSmart(file).then(function (text) {
+    var table = parseCSV(text);
+    if (!table.length) throw new Error('CSVが空です');
+    var headerRow = table[0].map(function (h) { return h.trim(); });
+    var missing = COLUMNS.filter(function (c) { return headerRow.indexOf(c.header) === -1; });
+    if (missing.length) {
+      throw new Error('ヘッダーに次の列が見つかりません: ' + missing.map(function (c) { return c.header; }).join('、') + '（テンプレートを使ってください）');
+    }
+    var colIndex = {};
+    COLUMNS.forEach(function (c) { colIndex[c.key] = headerRow.indexOf(c.header); });
+    var rows = table.slice(1).map(function (cells) {
+      var row = {};
+      COLUMNS.forEach(function (c) { row[c.key] = (cells[colIndex[c.key]] || '').trim(); });
+      return row;
+    }).filter(function (row) { return Object.keys(row).some(function (k) { return row[k] !== ''; }); });
+    STATE.parsedRows = rows;
+    renderPreview(rows);
+  }).catch(function (err) {
+    document.getElementById('parseError').textContent = err.message;
+    document.getElementById('previewCard').style.display = 'none';
+  });
+});
+
+function resolvePersonPreview(row) {
+  if (row.legislatorId) {
+    var byId = STATE.relations.filter(function (r) { return r.legislatorId === row.legislatorId; })[0];
+    if (!byId) return { status: 'error', message: 'legislator_id "' + row.legislatorId + '" が関係マスタに見つかりません' };
+    return { status: 'existing', name: byId.name, legislatorId: byId.legislatorId };
+  }
+  if (!row.name) return { status: 'error', message: '氏名またはlegislator_idが必要です' };
+  var byName = STATE.relations.filter(function (r) { return r.name === row.name; })[0];
+  if (byName) return { status: 'existing', name: byName.name, legislatorId: byName.legislatorId };
+  var matches = STATE.allRows.filter(function (r) { return r.name === row.name; });
+  if (!matches.length) return { status: 'error', message: '議員マスタ（全体）に氏名が見つかりません（表記ゆれの可能性、legislator_idの指定を推奨）' };
+  if (matches.length > 1) return { status: 'error', message: '同姓同名が複数存在します。legislator_idで指定してください' };
+  return { status: 'new', name: row.name };
+}
+
+function validateContactPreview(row) {
+  if (!row.type) return { hasContact: false };
+  if (CONTACT_TYPES.indexOf(row.type) === -1) {
+    return { hasContact: true, error: '種別は「面談」「贈答」「セミナー献金（パーティー券購入）」のいずれかで入力してください（入力値: "' + row.type + '"）' };
+  }
+  if (!row.content) return { hasContact: true, error: '種別を指定した場合は内容が必須です' };
+  if (row.date && !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
+    return { hasContact: true, error: '日付はYYYY-MM-DD形式で入力してください（入力値: "' + row.date + '"）' };
+  }
+  if (row.amount && isNaN(Number(row.amount))) {
+    return { hasContact: true, error: '金額_円は数値で入力してください（入力値: "' + row.amount + '"）' };
+  }
+  return { hasContact: true, summary: row.type + '（' + (row.date || '日付なし') + '）：' + row.content };
+}
+
+function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function renderPreview(rows) {
+  var evaluated = rows.map(function (row, idx) {
+    var person = resolvePersonPreview(row);
+    var contact = validateContactPreview(row);
+    var error = person.status === 'error' ? person.message : (contact.error || null);
+    return { idx: idx, row: row, person: person, contact: contact, error: error };
+  });
+
+  var validCount = evaluated.filter(function (e) { return !e.error; }).length;
+  var errorCount = evaluated.length - validCount;
+  document.getElementById('validCount').textContent = validCount;
+  document.getElementById('errorCount').textContent = errorCount;
+
+  var statusLabel = { new: '新規登録', existing: '既存', error: 'エラー' };
+  var statusClass = { new: 'status-new', existing: 'status-existing', error: 'status-error' };
+
+  var html = '<table class="import-table"><thead><tr>' +
+    '<th>行</th><th>判定</th><th>氏名</th><th>追加する接触履歴</th><th>エラー</th>' +
+    '</tr></thead><tbody>' +
+    evaluated.map(function (e) {
+      var name = e.row.name || e.row.legislatorId || '（未指定）';
+      var contactText = e.contact.hasContact
+        ? (e.contact.error ? '<span class="muted">' + escHtml(e.contact.summary || e.row.type || '') + '</span>' : escHtml(e.contact.summary))
+        : '<span class="muted">なし</span>';
+      var statusKey = e.person.status || 'error';
+      return '<tr class="' + (e.error ? 'row-error' : '') + '">' +
+        '<td class="num">' + (e.idx + 2) + '</td>' +
+        '<td><span class="status-pill ' + statusClass[statusKey] + '">' + statusLabel[statusKey] + '</span></td>' +
+        '<td>' + escHtml(name) + (e.person.legislatorId ? '<div class="muted">' + escHtml(e.person.legislatorId) + '</div>' : '') + '</td>' +
+        '<td>' + contactText + '</td>' +
+        '<td class="err-text">' + escHtml(e.error || '') + '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table>';
+
+  if (!evaluated.length) html = '<div class="empty-state">データ行がありません</div>';
+
+  document.getElementById('previewTableWrap').innerHTML = html;
+  document.getElementById('previewCard').style.display = 'block';
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('importNote').textContent = errorCount
+    ? 'エラー行（' + errorCount + '件）はインポートされません。'
+    : '';
+  var importBtn = document.getElementById('importBtn');
+  importBtn.disabled = validCount === 0;
+  importBtn.onclick = function () { runImport(evaluated.filter(function (e) { return !e.error; })); };
+}
+
+async function runImport(validEntries) {
+  var btn = document.getElementById('importBtn');
+  btn.disabled = true;
+  btn.textContent = 'インポート中…';
+  try {
+    var payload = validEntries.map(function (e) { return e.row; });
+    var res = await GasClient.call('bulkImport', { rows: payload });
+    renderResult(res.results, validEntries);
+    await loadMasters();
+  } catch (err) {
+    document.getElementById('importNote').textContent = 'インポートに失敗しました: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'この内容でインポート実行';
+  }
+}
+
+function renderResult(results, validEntries) {
+  var okCount = results.filter(function (r) { return !r.error; }).length;
+  var errCount = results.length - okCount;
+  document.getElementById('resultOkCount').textContent = okCount;
+  document.getElementById('resultErrCount').textContent = errCount;
+
+  var html = '<table class="import-table"><thead><tr>' +
+    '<th>行</th><th>氏名</th><th>結果</th><th>詳細</th>' +
+    '</tr></thead><tbody>' +
+    results.map(function (r, i) {
+      var entry = validEntries[i];
+      var rowNo = entry ? entry.idx + 2 : r.row + 1;
+      if (r.error) {
+        return '<tr class="row-error"><td class="num">' + rowNo + '</td><td>' + escHtml(r.name) + '</td>' +
+          '<td><span class="status-pill status-error">失敗</span></td><td class="err-text">' + escHtml(r.error) + '</td></tr>';
+      }
+      var detail = [];
+      if (r.created) detail.push('関係マスタに新規登録（' + r.legislatorId + '）');
+      if (r.updated) detail.push('項目を更新');
+      if (r.contactAdded) detail.push('接触履歴を追加');
+      if (!detail.length) detail.push('変更なし');
+      return '<tr><td class="num">' + rowNo + '</td><td>' + escHtml(r.name) + '</td>' +
+        '<td><span class="status-pill status-ok">成功</span></td><td>' + escHtml(detail.join('／')) + '</td></tr>';
+    }).join('') +
+    '</tbody></table>';
+
+  document.getElementById('resultTableWrap').innerHTML = html;
+  document.getElementById('resultCard').style.display = 'block';
+}
+</script>
