@@ -263,6 +263,9 @@ let PARTY_COLORS = {};
 let filter = { house: "all", parties: null };
 
 function fmtYen(n){ return "¥"+Math.round(n||0).toLocaleString("ja-JP"); }
+// 関係マスタは「自民党」、議員マスタ（全体）は「自民」のように表記が揺れているため、
+// 政党名を突合する際は末尾の「党」を無視して比較する（detail.htmlのnormPartyと同じ規則）
+function normParty(p){ return p ? p.replace(/党$/, "") : p; }
 
 function goToDetail(ev, legislatorId){
   if (!legislatorId) return;
@@ -341,7 +344,7 @@ function renderKPIs(){
     const rel = relById[c.relationId];
     const amt = c.amount || 0;
     totalAmount += amt;
-    if (rel) amtByParty[rel.party] = (amtByParty[rel.party]||0) + amt;
+    if (rel) amtByParty[normParty(rel.party)] = (amtByParty[normParty(rel.party)]||0) + amt;
   });
   document.getElementById("kpiAmount").textContent = fmtYen(totalAmount);
 
@@ -468,11 +471,12 @@ function renderChartUnit(container){
   if (container._mode === "bar"){
     slot.innerHTML = '<div class="barchart"></div>';
     const bc = slot.querySelector(".barchart");
+    const maxVal = Math.max(...colored.map(e => e.value)) || 1;
     colored.forEach(e => {
       const row = document.createElement("div"); row.className = "bc-row";
       row.innerHTML =
         '<span class="lbl">'+e.label+'</span>'+
-        '<span class="track"><span class="fill" style="width:'+(e.value/total*100)+'%; background:'+e.color+'"></span></span>'+
+        '<span class="track"><span class="fill" style="width:'+(e.value/maxVal*100)+'%; background:'+e.color+'"></span></span>'+
         '<span class="pct">'+e.value+'件</span>';
       bc.appendChild(row);
     });
