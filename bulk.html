@@ -336,7 +336,7 @@ function renderPreview(rows) {
     '<th>行</th><th>判定</th><th>氏名</th><th>追加する接触履歴</th><th>エラー</th>' +
     '</tr></thead><tbody>' +
     evaluated.map(function (e) {
-      var name = e.row.name || e.row.legislatorId || '（未指定）';
+      var name = e.person.name || e.row.name || e.row.legislatorId || '（未指定）';
       var contactText = e.contact.hasContact
         ? (e.contact.error ? '<span class="muted">' + escHtml(e.contact.summary || e.row.type || '') + '</span>' : escHtml(e.contact.summary))
         : '<span class="muted">なし</span>';
