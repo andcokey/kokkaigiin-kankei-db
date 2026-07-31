@@ -201,6 +201,20 @@
   .who-did { font-size: 12.5px; color: var(--ink-faint); }
   .entry .memo { font-size: 13.5px; color: var(--ink); }
 
+  .btn-secondary {
+    font: inherit; font-size: 12.5px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 7px; padding: 7px 14px; cursor: pointer;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .toggle-wrap { display: flex; justify-content: center; margin-top: 14px; }
+
+  .news-list { padding-left: 2px; }
+  .news-item { padding: 10px 2px; border-bottom: 1px dashed var(--border); }
+  .news-item:last-child { border-bottom: none; }
+  .news-item a { color: var(--ink); text-decoration: none; font-size: 13.5px; font-weight: 500; }
+  .news-item a:hover { text-decoration: underline; color: var(--accent); }
+  .news-item .meta { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; }
+
   .empty-state { padding: 30px 16px; text-align: center; color: var(--ink-faint); font-size: 12.5px; }
   .loading-state { padding: 60px 16px 70px; text-align: center; color: var(--ink-faint); font-size: 13px; }
   .loading-bar-wrap { width: 260px; margin: 16px auto 0; }
@@ -370,12 +384,26 @@
         </div>
 
         <div class="ledger" id="ledger"></div>
+        <div class="toggle-wrap" id="ledgerToggleWrap" style="display:none;">
+          <button class="btn-secondary" id="ledgerToggleBtn" type="button"></button>
+        </div>
       </div>
       <div id="histNaBlock" class="empty-state" style="display:none;">N/A（この議員は関係マスタに未登録のため、接触履歴はありません）</div>
 
+      <div class="hist-head" style="margin-top:32px;">
+        <div>
+          <h2>ニュース</h2>
+          <div class="hint">Google Newsを氏名で検索した関連ニュースです。自動検索のため、同姓同名の人物のニュースが混在する場合があります。</div>
+        </div>
+      </div>
+      <div id="newsList" class="news-list"></div>
+      <div class="toggle-wrap" id="newsToggleWrap" style="display:none;">
+        <button class="btn-secondary" id="newsToggleBtn" type="button"></button>
+      </div>
+
       <div class="foot-note">
         ※ パーティー券購入・贈答・面談の初回データはCSV一括登録によるものです。関係マスタ登録者は「＋履歴を追加」からNotionへ追記できます。<br>
-        ※ ニュースは現在RSS連携が未整備のため、このタイムラインには含まれていません（整備後に反映予定）。
+        ※ ニュースはGoogle News検索結果の自動取得であり、内容の正確性・関連性は保証されません。必要に応じて元記事でご確認ください。
       </div>
     </div>
   </div>
@@ -393,8 +421,12 @@ var STATE = {
   activeRelation: null, activeAllRow: null, person: null,
   contacts: [], qualityNotes: [], activeType: 'all',
   sidebarMode: 'party',
-  editingGroup: null, editingContactId: null
+  editingGroup: null, editingContactId: null,
+  ledgerExpanded: false,
+  news: [], newsExpanded: false, newsLoading: false, newsError: null
 };
+var LEDGER_COLLAPSED_COUNT = 5;
+var NEWS_COLLAPSED_COUNT = 5;
 
 function fmtYen(n){ return (n||0).toLocaleString('ja-JP') + '円'; }
 function escAttr(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
@@ -625,6 +657,7 @@ async function boot(){
     renderDossier();
     renderQualityBanner();
     renderLedger();
+    loadNews(); // ページ表示をブロックしないよう非同期・fire-and-forgetで実行
   } catch (err) {
     showLoadingError('読み込みに失敗しました: ' + err.message);
   }
@@ -754,10 +787,12 @@ function renderQualityBanner(){
 
 function renderLedger(){
   var el = document.getElementById('ledger');
+  var toggleWrap = document.getElementById('ledgerToggleWrap');
   var rows = STATE.contacts.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
   if (STATE.activeType !== 'all') rows = rows.filter(function(c){ return c.type === STATE.activeType; });
-  if (!rows.length) { el.innerHTML = '<div class="empty-state">該当する履歴がありません</div>'; return; }
-  el.innerHTML = rows.map(function(c){
+  if (!rows.length) { el.innerHTML = '<div class="empty-state">該当する履歴がありません</div>'; toggleWrap.style.display = 'none'; return; }
+  var visibleRows = STATE.ledgerExpanded ? rows : rows.slice(0, LEDGER_COLLAPSED_COUNT);
+  el.innerHTML = visibleRows.map(function(c){
     var amountLine = c.amount ? '　金額：' + fmtYen(c.amount) : '';
     return '<div class="entry" data-type="' + c.type + '" data-id="' + escAttr(c.id) + '">' +
       '<div class="date tnum">' + (c.date || 'ー') + '</div>' +
@@ -772,6 +807,72 @@ function renderLedger(){
       '</div>' +
     '</div>';
   }).join('');
+
+  if (rows.length <= LEDGER_COLLAPSED_COUNT) { toggleWrap.style.display = 'none'; return; }
+  toggleWrap.style.display = '';
+  document.getElementById('ledgerToggleBtn').textContent = STATE.ledgerExpanded
+    ? '折りたたむ（直近' + LEDGER_COLLAPSED_COUNT + '件のみ表示）'
+    : '他' + (rows.length - LEDGER_COLLAPSED_COUNT) + '件を表示（全' + rows.length + '件）';
+}
+document.getElementById('ledgerToggleBtn').addEventListener('click', function(){
+  STATE.ledgerExpanded = !STATE.ledgerExpanded;
+  renderLedger();
+});
+
+function fmtNewsDate(pubDate){
+  if (!pubDate) return '';
+  var d = new Date(pubDate);
+  if (isNaN(d.getTime())) return pubDate;
+  return d.toISOString().slice(0, 10);
+}
+
+function renderNews(){
+  var wrap = document.getElementById('newsList');
+  var toggleWrap = document.getElementById('newsToggleWrap');
+  if (STATE.newsLoading) {
+    wrap.innerHTML = '<div class="empty-state">ニュースを取得中…</div>';
+    toggleWrap.style.display = 'none';
+    return;
+  }
+  if (STATE.newsError) {
+    wrap.innerHTML = '<div class="empty-state">ニュースの取得に失敗しました: ' + escAttr(STATE.newsError) + '</div>';
+    toggleWrap.style.display = 'none';
+    return;
+  }
+  if (!STATE.news.length) {
+    wrap.innerHTML = '<div class="empty-state">関連ニュースが見つかりませんでした</div>';
+    toggleWrap.style.display = 'none';
+    return;
+  }
+  var visible = STATE.newsExpanded ? STATE.news : STATE.news.slice(0, NEWS_COLLAPSED_COUNT);
+  wrap.innerHTML = visible.map(function(n){
+    return '<div class="news-item"><a href="' + escAttr(n.link) + '" target="_blank" rel="noopener">' + escAttr(n.title) + '</a>' +
+      '<div class="meta">' + escAttr(n.source || '') + (n.source && n.pubDate ? '　・　' : '') + escAttr(fmtNewsDate(n.pubDate)) + '</div></div>';
+  }).join('');
+
+  if (STATE.news.length <= NEWS_COLLAPSED_COUNT) { toggleWrap.style.display = 'none'; return; }
+  toggleWrap.style.display = '';
+  document.getElementById('newsToggleBtn').textContent = STATE.newsExpanded
+    ? '折りたたむ（直近' + NEWS_COLLAPSED_COUNT + '件のみ表示）'
+    : '他' + (STATE.news.length - NEWS_COLLAPSED_COUNT) + '件を表示（全' + STATE.news.length + '件）';
+}
+document.getElementById('newsToggleBtn').addEventListener('click', function(){
+  STATE.newsExpanded = !STATE.newsExpanded;
+  renderNews();
+});
+
+async function loadNews(){
+  STATE.newsLoading = true;
+  STATE.newsError = null;
+  renderNews();
+  try {
+    STATE.news = await GasClient.call('getNews', { name: STATE.person.name });
+  } catch (err) {
+    STATE.newsError = err.message;
+  } finally {
+    STATE.newsLoading = false;
+    renderNews();
+  }
 }
 
 document.getElementById('ledger').addEventListener('click', function(ev){

@@ -70,6 +70,9 @@ function handle(e) {
       case 'bulkImport':
         result = bulkImport(params);
         break;
+      case 'getNews':
+        result = getNews(params);
+        break;
       default:
         return jsonOut({ ok: false, error: '不明なaction: ' + action });
     }
@@ -493,4 +496,40 @@ function bulkImport(params) {
   });
 
   return { results: results };
+}
+
+/* ---------------- ニュース（Google News RSS経由） ---------------- */
+
+var NEWS_LIMIT = 20;
+
+function getChildText(el, name) {
+  var child = el.getChild(name);
+  return child ? child.getText() : '';
+}
+
+/**
+ * 氏名でGoogle Newsを検索し、関連ニュースを取得する（同姓同名のニュースが混在する可能性あり）。
+ * params: name(氏名)
+ */
+function getNews(params) {
+  if (!params.name) throw new Error('nameが必要です');
+  var query = '"' + String(params.name).trim() + '" 議員';
+  var url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=ja&gl=JP&ceid=JP:ja';
+  var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (resp.getResponseCode() >= 300) {
+    throw new Error('ニュース取得エラー: HTTP ' + resp.getResponseCode());
+  }
+  var doc = XmlService.parse(resp.getContentText());
+  var channel = doc.getRootElement().getChild('channel');
+  var items = channel ? channel.getChildren('item') : [];
+  return items.slice(0, NEWS_LIMIT).map(function (item) {
+    var sourceEl = item.getChild('source');
+    var source = sourceEl ? sourceEl.getText() : '';
+    var title = getChildText(item, 'title');
+    var suffix = ' - ' + source;
+    if (source && title.slice(-suffix.length) === suffix) {
+      title = title.slice(0, -suffix.length);
+    }
+    return { title: title, link: getChildText(item, 'link'), pubDate: getChildText(item, 'pubDate'), source: source };
+  });
 }
