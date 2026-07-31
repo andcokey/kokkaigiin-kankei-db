@@ -55,6 +55,18 @@ function handle(e) {
       case 'addContact':
         result = addContact(params);
         break;
+      case 'updateRelation':
+        result = updateRelation(params);
+        break;
+      case 'updateContact':
+        result = updateContact(params);
+        break;
+      case 'deleteContact':
+        result = deleteContact(params);
+        break;
+      case 'createRelation':
+        result = createRelation(params);
+        break;
       default:
         return jsonOut({ ok: false, error: '不明なaction: ' + action });
     }
@@ -251,4 +263,118 @@ function addContact(params) {
   };
   var page = notionFetch('pages', 'post', body);
   return { id: page.id };
+}
+
+/* ---------------- 編集・削除（社内担当／接触履歴） ---------------- */
+
+function buildPropertyPayload(type, value) {
+  switch (type) {
+    case 'title':
+      return { title: [{ text: { content: String(value || '') } }] };
+    case 'rich_text':
+      return { rich_text: [{ text: { content: String(value || '') } }] };
+    case 'select':
+      return value ? { select: { name: String(value) } } : { select: null };
+    case 'number':
+      return { number: (value === '' || value == null) ? null : Number(value) };
+    case 'date':
+      return value ? { date: { start: value } } : { date: null };
+    default:
+      throw new Error('未対応のプロパティ型: ' + type);
+  }
+}
+
+function buildUpdateProperties(fieldMap, editableTypes, params) {
+  var properties = {};
+  for (var key in editableTypes) {
+    if (params[key] !== undefined) {
+      properties[fieldMap[key]] = buildPropertyPayload(editableTypes[key], params[key]);
+    }
+  }
+  if (!Object.keys(properties).length) throw new Error('更新する項目がありません');
+  return properties;
+}
+
+/**
+ * 関係マスタの各項目を編集
+ * params: relationPageId, house/party/district/factionNotes/currentPost/electionResult/
+ *         internalContact/giftInRepName/zip/address/phone/note1/note2Url のうち更新したいもの
+ */
+var RELATION_EDITABLE_TYPES = {
+  house: 'rich_text', party: 'rich_text', district: 'rich_text', factionNotes: 'rich_text',
+  currentPost: 'rich_text', electionResult: 'rich_text',
+  internalContact: 'rich_text', giftInRepName: 'rich_text',
+  zip: 'rich_text', address: 'rich_text', phone: 'rich_text',
+  note1: 'rich_text', note2Url: 'rich_text'
+};
+
+function updateRelation(params) {
+  if (!params.relationPageId) throw new Error('relationPageId が必要です');
+  var properties = buildUpdateProperties(RELATION_FIELDS, RELATION_EDITABLE_TYPES, params);
+  notionFetch('pages/' + params.relationPageId, 'patch', { properties: properties });
+  return { id: params.relationPageId };
+}
+
+/**
+ * 議員マスタ（全体）の議員を関係マスタに新規登録する
+ * params: allMasterId, name(氏名), party(政党), house(議院), district(選挙区)
+ * legislator_id は既存の最大値+1を自動採番する
+ */
+function nextLegislatorId(existingIds) {
+  var max = 0;
+  existingIds.forEach(function (id) {
+    var m = /^L(\d+)$/.exec(id || '');
+    if (m) {
+      var n = parseInt(m[1], 10);
+      if (n > max) max = n;
+    }
+  });
+  var s = String(max + 1);
+  while (s.length < 3) s = '0' + s;
+  return 'L' + s;
+}
+
+function createRelation(params) {
+  if (!params.allMasterId) throw new Error('allMasterId が必要です');
+
+  var existing = listRelations();
+  var legislatorId = nextLegislatorId(existing.map(function (r) { return r.legislatorId; }));
+
+  var properties = {
+    '氏名': { title: [{ text: { content: String(params.name || '') } }] },
+    'legislator_id': { rich_text: [{ text: { content: legislatorId } }] },
+    '議員マスタ（全体）': { relation: [{ id: params.allMasterId }] }
+  };
+  ['party', 'house', 'district'].forEach(function (key) {
+    properties[RELATION_FIELDS[key]] = { rich_text: [{ text: { content: String(params[key] || '') } }] };
+  });
+
+  var body = { parent: { data_source_id: DATA_SOURCES.relations }, properties: properties };
+  var page = notionFetch('pages', 'post', body);
+  return { id: page.id, legislatorId: legislatorId };
+}
+
+/**
+ * 接触履歴（面談・贈答・セミナー献金）を編集
+ * params: contactPageId, type(種別), date(日付), content(内容), note(備考), amount(金額_円), summary(概要)
+ */
+var CONTACT_EDITABLE_TYPES = {
+  type: 'select', date: 'date', content: 'rich_text', note: 'rich_text', amount: 'number', summary: 'title'
+};
+
+function updateContact(params) {
+  if (!params.contactPageId) throw new Error('contactPageId が必要です');
+  var properties = buildUpdateProperties(CONTACT_FIELDS, CONTACT_EDITABLE_TYPES, params);
+  notionFetch('pages/' + params.contactPageId, 'patch', { properties: properties });
+  return { id: params.contactPageId };
+}
+
+/**
+ * 接触履歴を削除（Notion上はアーカイブ）
+ * params: contactPageId
+ */
+function deleteContact(params) {
+  if (!params.contactPageId) throw new Error('contactPageId が必要です');
+  notionFetch('pages/' + params.contactPageId, 'patch', { archived: true });
+  return { id: params.contactPageId, archived: true };
 }

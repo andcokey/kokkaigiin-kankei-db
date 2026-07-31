@@ -212,6 +212,37 @@
   }
   .na-note { color: var(--ink-faint); font-size: 12.5px; }
   .badge.b-muted { background: var(--surface-3); color: var(--ink-faint); border-color: transparent; }
+
+  .fg-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .fg-title-row .fg-title { margin-bottom: 0; }
+  .edit-icon {
+    font: inherit; font-size: 12px; line-height: 1; color: var(--ink-faint); background: none; border: none;
+    cursor: pointer; padding: 2px 4px; border-radius: 4px;
+  }
+  .edit-icon:hover { color: var(--accent); background: var(--surface-2); }
+  .internal-edit label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink-faint); margin-bottom: 8px; }
+  .internal-edit input, .internal-edit textarea {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; width: 100%;
+  }
+  .internal-edit textarea { resize: vertical; min-height: 44px; }
+  .internal-edit-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
+
+  .register-banner {
+    margin: 18px 26px 0; padding: 14px 16px; border-radius: 8px; background: var(--accent-soft); border: 1px solid var(--accent);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  }
+  .register-banner .msg { font-size: 12.5px; color: var(--ink-soft); }
+  .register-banner .actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .register-banner .err { font-size: 12px; color: var(--seal); }
+
+  .entry-actions { margin-left: auto; display: flex; gap: 4px; }
+  .entry-act {
+    font: inherit; font-size: 11px; color: var(--ink-faint); background: none; border: 1px solid var(--border);
+    border-radius: 5px; padding: 2px 8px; cursor: pointer;
+  }
+  .entry-act:hover { color: var(--accent); border-color: var(--accent); }
+  .entry-act.danger:hover { color: var(--seal); border-color: var(--seal); }
 </style>
 
 <div class="app">
@@ -264,6 +295,7 @@
         </div>
 
         <div id="qualityBanner"></div>
+        <div id="registerBanner"></div>
 
         <div class="field-grid">
           <div class="field-group" id="fgBasic"></div>
@@ -271,6 +303,8 @@
           <div class="field-group nb-r" id="fgSeminar"></div>
           <div class="field-group" id="fgInternal"></div>
           <div class="field-group span2 nb-r" id="fgLastContact"></div>
+          <div class="field-group" id="fgSendTo"></div>
+          <div class="field-group span2 nb-r" id="fgNotes"></div>
           <div class="field-group" id="fgDomain"></div>
           <div class="field-group" id="fgServer"></div>
           <div class="field-group nb-r" id="fgSsl"></div>
@@ -348,10 +382,145 @@ var STATE = {
   relations: [], allRows: [], unified: [],
   activeRelation: null, activeAllRow: null, person: null,
   contacts: [], qualityNotes: [], activeType: 'all',
-  sidebarMode: 'party'
+  sidebarMode: 'party',
+  editingGroup: null, editingContactId: null
 };
 
 function fmtYen(n){ return (n||0).toLocaleString('ja-JP') + '円'; }
+function escAttr(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+var RELATION_FIELD_GROUPS = {
+  current: { title: '現状', fields: [
+    { key: 'currentPost', label: '現職役職' }, { key: 'electionResult', label: '選挙結果' }
+  ] },
+  internal: { title: '社内担当', fields: [
+    { key: 'internalContact', label: '担当' }, { key: 'giftInRepName', label: '代表名で贈るか' }
+  ] },
+  sendTo: { title: '送付先情報', fields: [
+    { key: 'zip', label: '郵便番号' }, { key: 'address', label: '住所' }, { key: 'phone', label: '電話番号' }
+  ] },
+  notes: { title: '備考', fields: [
+    { key: 'note1', label: '備考1', multiline: true }, { key: 'note2Url', label: '備考2・URL等', multiline: true }
+  ] }
+};
+
+function editActionsHtml(){
+  return '<div class="internal-edit-actions"><span class="err"></span>' +
+    '<button class="btn-secondary" data-act="cancel" type="button">キャンセル</button>' +
+    '<button class="add-btn" data-act="save" type="button">保存</button></div>';
+}
+
+function fieldInputHtml(f, rel){
+  var raw = rel[f.key] || '';
+  return '<label>' + f.label + (f.multiline
+    ? '<textarea rows="3" data-field="' + f.key + '">' + escAttr(raw) + '</textarea>'
+    : '<input type="text" data-field="' + f.key + '" value="' + escAttr(raw) + '"></label>') +
+    (f.multiline ? '</label>' : '');
+}
+
+function wireGroupEditActions(fieldKeys, box, rerender, onSaved){
+  box.querySelector('[data-act="cancel"]').addEventListener('click', function(){ STATE.editingGroup = null; rerender(); });
+  box.querySelector('[data-act="save"]').addEventListener('click', async function(){
+    var btn = box.querySelector('[data-act="save"]');
+    var errEl = box.querySelector('.err');
+    btn.disabled = true;
+    var payload = { relationPageId: STATE.activeRelation.id };
+    fieldKeys.forEach(function(k){ payload[k] = box.querySelector('[data-field="' + k + '"]').value.trim(); });
+    try {
+      await GasClient.call('updateRelation', payload);
+      fieldKeys.forEach(function(k){ STATE.activeRelation[k] = payload[k]; });
+      if (onSaved) onSaved(payload);
+      STATE.editingGroup = null;
+      rerender();
+    } catch (err) {
+      errEl.textContent = '保存に失敗しました: ' + err.message;
+      btn.disabled = false;
+    }
+  });
+}
+
+function renderRelationGroup(groupKey, boxId, naHtml){
+  var rel = STATE.activeRelation;
+  var box = document.getElementById(boxId);
+  var group = RELATION_FIELD_GROUPS[groupKey];
+  if (!rel) {
+    box.innerHTML = '<div class="fg-title">' + group.title + '</div>' +
+      (naHtml || '<div class="na-note">N/A（関係マスタ未登録）</div>');
+    return;
+  }
+  if (STATE.editingGroup === groupKey) {
+    box.innerHTML = '<div class="fg-title">' + group.title + '</div>' +
+      '<div class="internal-edit">' +
+      group.fields.map(function(f){ return fieldInputHtml(f, rel); }).join('') +
+      editActionsHtml() +
+      '</div>';
+    wireGroupEditActions(group.fields.map(function(f){ return f.key; }), box, function(){ renderRelationGroup(groupKey, boxId); });
+  } else {
+    box.innerHTML = '<div class="fg-title-row"><div class="fg-title">' + group.title + '</div><button class="edit-icon" data-editgroup type="button">✎ 編集</button></div>' +
+      group.fields.map(function(f){ return kv(f.label, rel[f.key], f.multiline ? 'memo-row' : ''); }).join('');
+    box.querySelector('[data-editgroup]').addEventListener('click', function(){ STATE.editingGroup = groupKey; renderRelationGroup(groupKey, boxId); });
+  }
+}
+
+function renderBasicGroup(){
+  var rel = STATE.activeRelation;
+  var person = STATE.person;
+  var box = document.getElementById('fgBasic');
+  var kanaLine = person.kana ? kv('読み', person.kana) : '';
+  if (!rel) {
+    box.innerHTML = '<div class="fg-title">基本情報</div>' +
+      kv('議院', person.house) + kv('政党', person.party) + kv('選挙区', person.district) + kanaLine;
+    return;
+  }
+  var basicFields = [
+    { key: 'house', label: '議院' }, { key: 'party', label: '政党' }, { key: 'district', label: '選挙区' },
+    { key: 'factionNotes', label: '派閥・備考', multiline: true }
+  ];
+  if (STATE.editingGroup === 'basic') {
+    box.innerHTML = '<div class="fg-title">基本情報</div>' +
+      '<div class="internal-edit">' +
+      basicFields.map(function(f){ return fieldInputHtml(f, rel); }).join('') +
+      editActionsHtml() +
+      '</div>' + kanaLine;
+    wireGroupEditActions(basicFields.map(function(f){ return f.key; }), box, renderBasicGroup, function(vals){
+      STATE.person.house = vals.house; STATE.person.party = vals.party; STATE.person.district = vals.district;
+    });
+  } else {
+    box.innerHTML = '<div class="fg-title-row"><div class="fg-title">基本情報</div><button class="edit-icon" data-editgroup type="button">✎ 編集</button></div>' +
+      kv('議院', rel.house) + kv('政党', rel.party) + kv('選挙区', rel.district) + kanaLine +
+      kv('派閥・備考', rel.factionNotes, 'memo-row');
+    box.querySelector('[data-editgroup]').addEventListener('click', function(){ STATE.editingGroup = 'basic'; renderBasicGroup(); });
+  }
+}
+
+function renderRegisterBanner(){
+  var el = document.getElementById('registerBanner');
+  if (STATE.activeRelation || !STATE.activeAllRow) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="register-banner">' +
+    '<div class="msg">この議員は関係マスタに未登録です。登録すると社内担当・現状・送付先・備考・接触履歴などを編集できるようになります。</div>' +
+    '<div class="actions"><span class="err" id="registerErr"></span><button class="add-btn" id="registerBtn" type="button">＋ 関係マスタに登録</button></div>' +
+    '</div>';
+  document.getElementById('registerBtn').addEventListener('click', registerRelation);
+}
+
+async function registerRelation(){
+  var btn = document.getElementById('registerBtn');
+  var errEl = document.getElementById('registerErr');
+  btn.disabled = true;
+  try {
+    await GasClient.call('createRelation', {
+      allMasterId: STATE.activeAllRow.id,
+      name: STATE.person.name,
+      party: STATE.person.party,
+      house: STATE.person.house,
+      district: STATE.person.district
+    });
+    location.reload();
+  } catch (err) {
+    errEl.textContent = '登録に失敗しました: ' + err.message;
+    btn.disabled = false;
+  }
+}
 
 // idパラメータは legislator_id（"L001"など・関係マスタ）か、
 // 議員マスタ（全体）のページIDのどちらでも受け付ける
@@ -480,27 +649,15 @@ function renderDossier(){
     (all ? '<span class="badge b-open">Web公開情報：取得済</span>' : (rel ? '<span class="badge">現職サイト：対象外（引退／落選）</span>' : '')) +
     (rel ? '' : '<span class="badge b-muted">関係マスタ：未登録</span>');
 
-  document.getElementById('fgBasic').innerHTML =
-    '<div class="fg-title">基本情報</div>' +
-    kv('議院', person.house) + kv('政党', person.party) + kv('選挙区', person.district) +
-    (person.kana ? kv('読み', person.kana) : '') +
-    (rel && rel.factionNotes ? kv('派閥・備考', rel.factionNotes) : '');
+  renderBasicGroup();
 
   if (rel) {
-    document.getElementById('fgCurrent').innerHTML =
-      '<div class="fg-title">現状</div>' +
-      kv('現職役職', rel.currentPost) + kv('選挙結果', rel.electionResult);
-
     var seminarContacts = STATE.contacts.filter(function(c){ return c.type === 'セミナー献金（パーティー券購入）'; });
     var seminarTotal = seminarContacts.reduce(function(s,c){ return s + (c.amount||0); }, 0);
     var seminarLatest = seminarContacts.map(function(c){ return c.date; }).filter(Boolean).sort().slice(-1)[0];
     document.getElementById('fgSeminar').innerHTML =
       '<div class="fg-title">セミナー献金（パーティー券購入・累計）</div>' +
       kv('累計金額', fmtYen(seminarTotal)) + kv('回数', seminarContacts.length + '回') + kv('直近日', seminarLatest);
-
-    document.getElementById('fgInternal').innerHTML =
-      '<div class="fg-title">社内担当</div>' +
-      kv('担当', rel.internalContact) + kv('代表名で贈るか', rel.giftInRepName);
 
     var meetings = STATE.contacts.filter(function(c){ return c.type === '面談' && c.date; }).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
     var last = meetings[0];
@@ -511,13 +668,19 @@ function renderDossier(){
       (last && last.note ? kv('備考', last.note, 'memo-row') : '');
   } else {
     var naMsg = '<div class="na-note">N/A（関係マスタ未登録）</div>';
-    document.getElementById('fgCurrent').innerHTML = '<div class="fg-title">現状</div>' +
-      (all && all.currentPost ? kv('現職役職', all.currentPost) + '<div class="na-note" style="margin-top:6px;">選挙結果はN/A</div>' : naMsg);
     document.getElementById('fgSeminar').innerHTML = '<div class="fg-title">セミナー献金（パーティー券購入・累計）</div>' + naMsg;
-    document.getElementById('fgInternal').innerHTML = '<div class="fg-title">社内担当</div>' + naMsg;
     document.getElementById('fgLastContact').innerHTML = '<div class="fg-title">最終接触（面談ベース）</div>' + naMsg;
     var last = null;
   }
+
+  var currentNaHtml = (all && all.currentPost)
+    ? kv('現職役職', all.currentPost) + '<div class="na-note" style="margin-top:6px;">選挙結果はN/A（関係マスタ未登録）</div>'
+    : null;
+  renderRelationGroup('current', 'fgCurrent', currentNaHtml);
+  renderRelationGroup('internal', 'fgInternal');
+  renderRelationGroup('sendTo', 'fgSendTo');
+  renderRelationGroup('notes', 'fgNotes');
+  renderRegisterBanner();
 
   document.getElementById('histRelationBlock').style.display = rel ? '' : 'none';
   document.getElementById('histNaBlock').style.display = rel ? 'none' : 'block';
@@ -566,14 +729,56 @@ function renderLedger(){
   if (!rows.length) { el.innerHTML = '<div class="empty-state">該当する履歴がありません</div>'; return; }
   el.innerHTML = rows.map(function(c){
     var amountLine = c.amount ? '　金額：' + fmtYen(c.amount) : '';
-    return '<div class="entry" data-type="' + c.type + '">' +
+    return '<div class="entry" data-type="' + c.type + '" data-id="' + escAttr(c.id) + '">' +
       '<div class="date tnum">' + (c.date || 'ー') + '</div>' +
       '<div class="content">' +
-        '<div class="row1"><span class="type-chip ' + c.type + '">' + c.type + '</span></div>' +
+        '<div class="row1"><span class="type-chip ' + c.type + '">' + c.type + '</span>' +
+          '<span class="entry-actions">' +
+            '<button class="entry-act" data-act="edit" type="button">編集</button>' +
+            '<button class="entry-act danger" data-act="delete" type="button">削除</button>' +
+          '</span>' +
+        '</div>' +
         '<div class="memo">' + (c.content || '') + amountLine + (c.note ? '　' + c.note : '') + '</div>' +
       '</div>' +
     '</div>';
   }).join('');
+}
+
+document.getElementById('ledger').addEventListener('click', function(ev){
+  var btn = ev.target.closest('.entry-act');
+  if (!btn) return;
+  var entryEl = btn.closest('.entry');
+  var id = entryEl.getAttribute('data-id');
+  var contact = STATE.contacts.filter(function(c){ return c.id === id; })[0];
+  if (!contact) return;
+  if (btn.getAttribute('data-act') === 'edit') startEditContact(contact);
+  else deleteContactEntry(contact);
+});
+
+function startEditContact(contact){
+  STATE.editingContactId = contact.id;
+  fType.value = contact.type;
+  document.getElementById('f-date').value = contact.date || '';
+  document.getElementById('f-content').value = contact.content || '';
+  document.getElementById('f-note').value = contact.note || '';
+  document.getElementById('f-amount').value = contact.amount || '';
+  syncFormFields();
+  addForm.classList.add('open');
+  document.querySelector('#addForm .fg-title').textContent = '履歴を編集';
+  document.getElementById('addSubmit').textContent = '更新する';
+  addForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function deleteContactEntry(contact){
+  if (!window.confirm('この履歴を削除しますか？（' + (contact.date || '') + ' ' + contact.type + '）')) return;
+  try {
+    await GasClient.call('deleteContact', { contactPageId: contact.id });
+    STATE.contacts = await GasClient.call('getContacts', { relationPageId: STATE.activeRelation.id });
+    renderDossier();
+    renderLedger();
+  } catch (err) {
+    window.alert('削除に失敗しました: ' + err.message);
+  }
 }
 
 document.querySelectorAll('#typeChips .chip').forEach(function(chip){
@@ -595,11 +800,23 @@ function syncFormFields(){
 }
 fType.addEventListener('change', syncFormFields);
 addToggle.addEventListener('click', function(){
+  if (STATE.editingContactId) { resetAddForm(); return; }
   addForm.classList.toggle('open');
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   syncFormFields();
 });
-document.getElementById('addCancel').addEventListener('click', function(){ addForm.classList.remove('open'); });
+
+function resetAddForm(){
+  STATE.editingContactId = null;
+  addForm.classList.remove('open');
+  document.querySelector('#addForm .fg-title').textContent = '履歴を追加';
+  document.getElementById('addSubmit').textContent = '追加する';
+  document.getElementById('f-content').value = '';
+  document.getElementById('f-note').value = '';
+  document.getElementById('f-amount').value = '';
+  document.getElementById('addErr').textContent = '';
+}
+document.getElementById('addCancel').addEventListener('click', resetAddForm);
 
 document.getElementById('addSubmit').addEventListener('click', async function(){
   var btn = this;
@@ -614,22 +831,32 @@ document.getElementById('addSubmit').addEventListener('click', async function(){
 
   btn.disabled = true;
   try {
-    await GasClient.call('addContact', {
-      relationPageId: STATE.activeRelation.id,
-      type: type,
-      date: date,
-      content: content,
-      note: note,
-      summary: type + '：' + STATE.activeRelation.name + ' ' + content.slice(0,20),
-      amount: (type !== '面談' && amount) ? amount : undefined
-    });
+    var summary = type + '：' + STATE.activeRelation.name + ' ' + content.slice(0,20);
+    if (STATE.editingContactId) {
+      await GasClient.call('updateContact', {
+        contactPageId: STATE.editingContactId,
+        type: type,
+        date: date,
+        content: content,
+        note: note,
+        summary: summary,
+        amount: (type !== '面談') ? (amount === '' ? null : amount) : null
+      });
+    } else {
+      await GasClient.call('addContact', {
+        relationPageId: STATE.activeRelation.id,
+        type: type,
+        date: date,
+        content: content,
+        note: note,
+        summary: summary,
+        amount: (type !== '面談' && amount) ? amount : undefined
+      });
+    }
     STATE.contacts = await GasClient.call('getContacts', { relationPageId: STATE.activeRelation.id });
     renderDossier();
     renderLedger();
-    document.getElementById('f-content').value = '';
-    document.getElementById('f-note').value = '';
-    document.getElementById('f-amount').value = '';
-    addForm.classList.remove('open');
+    resetAddForm();
   } catch (err) {
     errEl.textContent = '保存に失敗しました: ' + err.message;
   } finally {
