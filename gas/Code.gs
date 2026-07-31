@@ -159,7 +159,7 @@ var ALL_FIELDS = {
   name: '氏名', kana: '読み', house: '議院', party: '政党', district: '選挙区',
   domain: 'ドメイン', domainService: 'ドメイン管理サービス', domainCompany: 'ドメイン管理会社',
   serverService: 'サーバー管理サービス', serverCompany: 'サーバー管理会社',
-  sslVendor: 'SSLベンダー', siteSeal: 'サイトシール',
+  sslVendor: 'SSLベンダー', siteSeal: 'サイトシール', currentPost: '現職役職',
   relationId: '関係マスタ（重点対象）'
 };
 
