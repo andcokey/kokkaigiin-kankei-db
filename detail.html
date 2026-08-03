@@ -79,8 +79,17 @@
   .crumb b { color: var(--ink-soft); font-weight: 500; }
 
   .layout { display: grid; grid-template-columns: 220px 1fr; gap: 26px; align-items: start; }
-  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
   .sidebar { position: sticky; top: 16px; }
+  .sidebar-toggle-btn {
+    display: none; margin-left: auto; flex-shrink: 0;
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  .sidebar-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .sidebar-close-btn { display: none; }
+  .sidebar-backdrop { display: none; }
   .sidebar .label { font-size: 11px; letter-spacing: .08em; color: var(--ink-faint); text-transform: uppercase; margin: 0 0 8px 2px; }
   .sort-select { width: 100%; margin-bottom: 10px; font: inherit; font-size: 12.5px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
   .sort-hint { font-size: 11px; color: var(--ink-faint); margin: -4px 0 10px 2px; }
@@ -261,6 +270,32 @@
   }
   .entry-act:hover { color: var(--accent); border-color: var(--accent); }
   .entry-act.danger:hover { color: var(--seal); border-color: var(--seal); }
+
+  @media (max-width: 760px) {
+    .topbar { flex-wrap: wrap; row-gap: 8px; }
+    .sidebar-toggle-btn { display: inline-flex; align-items: center; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; z-index: 60;
+      width: 84vw; max-width: 320px; height: 100%;
+      margin: 0; padding: 20px 16px; overflow-y: auto;
+      background: var(--surface); border-right: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transform: translateX(-100%); transition: transform .25s ease;
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-close-btn {
+      display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 14px; right: 14px; width: 26px; height: 26px;
+      border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
+      color: var(--ink-soft); font-size: 15px; line-height: 1; cursor: pointer;
+    }
+    .sidebar-backdrop.open {
+      display: block; position: fixed; inset: 0; background: rgba(20,18,12,.4); z-index: 55;
+    }
+    .dossier-head { flex-wrap: wrap; }
+    .dossier-head .who .name { font-size: 21px; }
+    .gap-stat { min-width: 0; flex: 1 1 100%; }
+  }
 </style>
 
 <div class="app">
@@ -270,6 +305,7 @@
       <div class="name">議員関係DB</div>
     </a>
     <div class="crumb"><a href="index.html" id="crumbSummaryLink">全体サマリ</a> &nbsp;›&nbsp; <b id="crumbName">議員詳細</b></div>
+    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button">議員を切替 ▾</button>
   </div>
 
   <div id="loadingScreen" class="loading-state">
@@ -286,7 +322,9 @@
     <div class="nav-list" id="pickList" style="max-height:60vh; margin-top:10px;"></div>
   </div>
   <div id="appRoot" class="layout" style="display:none;">
-    <div class="sidebar">
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    <div class="sidebar" id="sidebarPanel">
+      <button class="sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="閉じる">×</button>
       <div class="label">議員一覧（全体）</div>
       <select class="sort-select" id="sidebarSort">
         <option value="party" selected>同党の議員（既定）</option>
@@ -696,6 +734,18 @@ function renderSidebar(mode){
 }
 document.getElementById('sidebarSort').addEventListener('change', function(e){ renderSidebar(e.target.value); });
 document.getElementById('sidebarSearch').addEventListener('input', function(){ renderSidebar(STATE.sidebarMode); });
+
+function openSidebarDrawer(){
+  document.getElementById('sidebarPanel').classList.add('open');
+  document.getElementById('sidebarBackdrop').classList.add('open');
+}
+function closeSidebarDrawer(){
+  document.getElementById('sidebarPanel').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
+}
+document.getElementById('sidebarToggleBtn').addEventListener('click', openSidebarDrawer);
+document.getElementById('sidebarCloseBtn').addEventListener('click', closeSidebarDrawer);
+document.getElementById('sidebarBackdrop').addEventListener('click', closeSidebarDrawer);
 
 function kv(k, v, cls){ return '<div class="kv' + (cls?(' '+cls):'') + '"><span class="k">'+k+'</span><span class="v'+(cls==='memo-row'?'':'')+'">'+ (v || '—') +'</span></div>'; }
 
