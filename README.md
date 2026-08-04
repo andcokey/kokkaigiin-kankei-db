@@ -79,11 +79,12 @@ detail.html上の各項目（基本情報・現状・社内担当・送付先情
 
 `listAll`（議員マスタ712件）・`listRelations`（関係マスタ41件）・`listContactsAll`（接触履歴225件）は、ページを開くたびにNotionからフル取得すると重いため、ブラウザのlocalStorageにキャッシュする方式にした。
 
-- `gas-client.js`の`GasClient.callListCached(actions, force)`が窓口。直近1時間以内にチェック済みのキャッシュがあれば通信なしでそのまま返す。1時間を過ぎている場合のみ、GAS側の`checkUpdated`アクション（各データソースを`page_size=1`・`last_edited_time`降順で問い合わせるだけの軽量チェック）を呼び、実際に更新があったデータソースだけをフル再取得する。
+- `gas-client.js`の`GasClient.callListCached(actions, force)`が窓口。直近1時間以内に取得済みのキャッシュがあれば通信なしでそのまま返す。1時間を過ぎている場合、またはキャッシュが無い場合のみ素直にGASへ取りに行く（更新有無を事前確認する往復は挟まない。往復を増やすとGAS側の一時的な不調に当たりやすくなるため、シンプルさを優先）。
+- 取得に失敗した場合（GAS側の一時的な不調でHTMLエラーページが返る等）、古いキャッシュがあればそれを代わりに表示し、画面が真っ白/エラーにならないようにしている。
 - 各ページ右上の「🔄 最新を取得」ボタンで、キャッシュを無視して即座に最新化できる（`force=true`）。
 - 書き込み系アクション（`updateRelation`/`createRelation`/`addContact`/`updateContact`/`deleteContact`/`bulkImport`）が成功すると、影響するキャッシュ（例: `updateRelation`→`listRelations`）を自動的に無効化し、次回は必ず最新を取得する。
 - キャッシュはブラウザ（端末）ごとに独立している。GAS接続設定を変更（`GasClient.resetConfig()`）した際もキャッシュはクリアされる。
-- **GAS側にコードを追加した機能なので、`gas/Code.gs`を更新した場合は script.google.com の既存プロジェクトを開いて「新しいバージョンをデプロイ」で反映する必要がある**（デプロイURLは変わらない）。
+- フロント側（`gas-client.js`）のみの変更なので、`gas/Code.gs`・GASデプロイは変更不要。
 
 ## 既知の制約・今後の課題
 

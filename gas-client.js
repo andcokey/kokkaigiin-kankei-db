@@ -2,10 +2,11 @@
 (function (global) {
   var CFG_KEY = 'gmoKokkaiDb.gasConfig';
   var CACHE_PREFIX = 'gmoKokkaiDb.cache.';
-  // これより新しいキャッシュは更新チェックの通信すら行わず即表示する（DBの更新頻度が低いため）
-  var CHECK_INTERVAL_MS = 60 * 60 * 1000;
-  // listAll/listRelations/listContactsAll がそれぞれどのNotionデータソースに対応するか（checkUpdatedのキーと一致）
-  var DS_FOR_ACTION = { listAll: 'legislatorsAll', listRelations: 'relations', listContactsAll: 'contacts' };
+  var CACHE_ACTIONS = ['listAll', 'listRelations', 'listContactsAll'];
+  // これより新しいキャッシュは通信なしでそのまま使う（DBの更新頻度が低いため）。
+  // これより古い場合は素直にGASへ取りに行く（更新確認の往復は挟まない。挟むと通信回数が増えて
+  // GAS側の一時的な不調＝<!DOCTYPE...のHTMLが返るエラーに引っかかりやすくなるため）。
+  var CACHE_TTL_MS = 60 * 60 * 1000;
   // 書き込み系アクション成功後、値が古くなるキャッシュを明示的に無効化する（次回は必ず最新を取得）
   var WRITE_INVALIDATES = {
     updateRelation: ['listRelations'],
@@ -45,19 +46,13 @@
     try { return JSON.parse(localStorage.getItem(CACHE_PREFIX + action)); }
     catch (e) { return null; }
   }
-  function writeCache(action, data, remoteEditedAt) {
+  function writeCache(action, data) {
     try {
-      localStorage.setItem(CACHE_PREFIX + action, JSON.stringify({
-        data: data, remoteEditedAt: remoteEditedAt, checkedAt: Date.now()
-      }));
+      localStorage.setItem(CACHE_PREFIX + action, JSON.stringify({ data: data, checkedAt: Date.now() }));
     } catch (e) { /* 容量超過等はキャッシュ無しで継続 */ }
   }
-  function touchCache(action) {
-    var c = readCache(action);
-    if (c) writeCache(action, c.data, c.remoteEditedAt);
-  }
   function clearListCache() {
-    Object.keys(DS_FOR_ACTION).forEach(function (action) {
+    CACHE_ACTIONS.forEach(function (action) {
       localStorage.removeItem(CACHE_PREFIX + action);
     });
   }
@@ -71,8 +66,11 @@
       headers: { 'Content-Type': 'text/plain' }, // CORSプリフライト回避
       body: JSON.stringify(body)
     })
-      .then(function (r) { return r.json(); })
-      .then(function (json) {
+      .then(function (r) { return r.text(); })
+      .then(function (text) {
+        var json;
+        try { json = JSON.parse(text); }
+        catch (e) { throw new Error('サーバーから予期しない応答がありました（時間をおいて再度お試しください）'); }
         if (!json.ok) throw new Error(json.error || '不明なエラー');
         if (WRITE_INVALIDATES[action]) {
           WRITE_INVALIDATES[action].forEach(function (a) { localStorage.removeItem(CACHE_PREFIX + a); });
@@ -83,49 +81,38 @@
 
   /**
    * listAll / listRelations / listContactsAll をキャッシュ優先で取得する。
-   * - 直近1時間以内にチェック済みのキャッシュがあれば、通信なしでそのまま返す。
-   * - それより古い場合のみ軽量な checkUpdated（各データソースの最新更新時刻だけを見る）を呼び、
-   *   実際にNotion側で更新があったものだけ再取得する。
-   * - force=true の場合はキャッシュ鮮度を無視し、必ずcheckUpdated経由で最新を確認する（更新ボタン用）。
+   * - 直近1時間以内に取得済みのキャッシュがあれば、通信なしでそのまま返す。
+   * - それより古い場合、またはforce=trueの場合は素直に取得し直す。
+   * - 取得に失敗した場合、古いキャッシュがあればそれを代わりに使う（無ければエラーを伝播）。
    */
   function callListCached(actions, force) {
     var out = {};
-    var needsCheck = [];
+    var toFetch = [];
     actions.forEach(function (action) {
       var cached = force ? null : readCache(action);
-      if (cached && (Date.now() - cached.checkedAt) < CHECK_INTERVAL_MS) {
+      if (cached && (Date.now() - cached.checkedAt) < CACHE_TTL_MS) {
         out[action] = cached.data;
       } else {
-        needsCheck.push(action);
+        toFetch.push(action);
       }
     });
-    if (!needsCheck.length) return Promise.resolve(out);
+    if (!toFetch.length) return Promise.resolve(out);
 
-    return callGas('checkUpdated').then(function (timestamps) {
-      var toFetch = [];
-      needsCheck.forEach(function (action) {
-        var cached = force ? null : readCache(action);
-        var dsKey = DS_FOR_ACTION[action];
-        if (cached && cached.remoteEditedAt === timestamps[dsKey]) {
-          out[action] = cached.data;
-          touchCache(action);
-        } else {
-          toFetch.push(action);
-        }
+    return Promise.all(toFetch.map(function (action) {
+      return callGas(action).then(function (data) {
+        writeCache(action, data);
+        out[action] = data;
+      }).catch(function (err) {
+        var stale = readCache(action);
+        if (stale) { out[action] = stale.data; return; }
+        throw err;
       });
-      if (!toFetch.length) return out;
-      return Promise.all(toFetch.map(function (action) {
-        return callGas(action).then(function (data) {
-          writeCache(action, data, timestamps[DS_FOR_ACTION[action]]);
-          out[action] = data;
-        });
-      })).then(function () { return out; });
-    });
+    })).then(function () { return out; });
   }
 
   function getCacheMeta(action) {
     var c = readCache(action);
-    return c ? { checkedAt: c.checkedAt, remoteEditedAt: c.remoteEditedAt } : null;
+    return c ? { checkedAt: c.checkedAt } : null;
   }
 
   global.GasClient = {
