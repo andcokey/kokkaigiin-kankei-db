@@ -75,6 +75,16 @@ detail.html上の各項目（基本情報・現状・社内担当・送付先情
 - アップロードするCSVはUTF-8・Shift-JIS（Excelの既定の保存形式）のどちらでも自動判定して読み込む
 - GAS側は`bulkImport`アクション（`gas/Code.gs`）で1行ずつ処理し、1行の失敗は他の行に影響しない（行ごとに成功／エラーを返す）
 
+### キャッシュによる高速化（2026-08-04追加）
+
+`listAll`（議員マスタ712件）・`listRelations`（関係マスタ41件）・`listContactsAll`（接触履歴225件）は、ページを開くたびにNotionからフル取得すると重いため、ブラウザのlocalStorageにキャッシュする方式にした。
+
+- `gas-client.js`の`GasClient.callListCached(actions, force)`が窓口。直近1時間以内にチェック済みのキャッシュがあれば通信なしでそのまま返す。1時間を過ぎている場合のみ、GAS側の`checkUpdated`アクション（各データソースを`page_size=1`・`last_edited_time`降順で問い合わせるだけの軽量チェック）を呼び、実際に更新があったデータソースだけをフル再取得する。
+- 各ページ右上の「🔄 最新を取得」ボタンで、キャッシュを無視して即座に最新化できる（`force=true`）。
+- 書き込み系アクション（`updateRelation`/`createRelation`/`addContact`/`updateContact`/`deleteContact`/`bulkImport`）が成功すると、影響するキャッシュ（例: `updateRelation`→`listRelations`）を自動的に無効化し、次回は必ず最新を取得する。
+- キャッシュはブラウザ（端末）ごとに独立している。GAS接続設定を変更（`GasClient.resetConfig()`）した際もキャッシュはクリアされる。
+- **GAS側にコードを追加した機能なので、`gas/Code.gs`を更新した場合は script.google.com の既存プロジェクトを開いて「新しいバージョンをデプロイ」で反映する必要がある**（デプロイURLは変わらない）。
+
 ## 既知の制約・今後の課題
 
 - ニュース欄はRSS連携が未整備のため空表示（N/A）です。整備後にDBへ反映される想定です。

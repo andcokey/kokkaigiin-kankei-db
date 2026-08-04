@@ -82,12 +82,21 @@
   @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
   .sidebar { position: sticky; top: 16px; }
   .sidebar-toggle-btn {
-    display: none; margin-left: auto; flex-shrink: 0;
+    display: none; flex-shrink: 0;
     font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
     background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
     padding: 6px 12px; cursor: pointer;
   }
   .sidebar-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .refresh-btn {
+    margin-left: auto; flex-shrink: 0;
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .refresh-btn:disabled { opacity: .5; cursor: default; }
+  .last-synced { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
   .sidebar-close-btn { display: none; }
   .sidebar-backdrop { display: none; }
   .sidebar .label { font-size: 11px; letter-spacing: .08em; color: var(--ink-faint); text-transform: uppercase; margin: 0 0 8px 2px; }
@@ -305,6 +314,8 @@
       <div class="name">議員関係DB</div>
     </a>
     <div class="crumb"><a href="index.html" id="crumbSummaryLink">全体サマリ</a> &nbsp;›&nbsp; <b id="crumbName">議員詳細</b></div>
+    <span class="last-synced" id="lastSyncedLabel"></span>
+    <button class="refresh-btn" id="refreshBtn" type="button">🔄 最新を取得</button>
     <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button">議員を切替 ▾</button>
   </div>
 
@@ -653,12 +664,12 @@ function showLoadingError(text){
   document.querySelector('.loading-bar-wrap').style.display = 'none';
 }
 
-async function boot(){
+async function boot(force){
   try {
-    setLoadingProgress(0, '読み込み中…（議員一覧を取得）');
-    var relations = await GasClient.call('listRelations');
-    setLoadingProgress(25, '読み込み中…（議員マスタ全体を取得）');
-    var allRows = await GasClient.call('listAll');
+    setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
+    var lists = await GasClient.callListCached(['listRelations', 'listAll'], force);
+    var relations = lists.listRelations;
+    var allRows = lists.listAll;
     setLoadingProgress(50);
     STATE.relations = relations;
     STATE.allRows = allRows;
@@ -686,18 +697,20 @@ async function boot(){
     }
     setLoadingProgress(100);
 
+    updateLastSyncedLabel();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'grid';
     document.getElementById('crumbName').textContent = STATE.person.name;
     document.title = STATE.person.name + ' — 議員関係DB';
 
-    renderSidebar('party');
+    renderSidebar(STATE.sidebarMode || 'party');
     renderDossier();
     renderQualityBanner();
     renderLedger();
     loadNews(); // ページ表示をブロックしないよう非同期・fire-and-forgetで実行
   } catch (err) {
-    showLoadingError('読み込みに失敗しました: ' + err.message);
+    if (force) alert('更新に失敗しました: ' + err.message);
+    else showLoadingError('読み込みに失敗しました: ' + err.message);
   }
 }
 
@@ -1068,25 +1081,58 @@ function renderPickerList(){
   }).join('');
 }
 
-async function renderPicker(){
+async function renderPicker(force){
   try {
-    setLoadingProgress(0, '読み込み中…（議員一覧を取得）');
-    var relations = await GasClient.call('listRelations');
-    setLoadingProgress(50, '読み込み中…（議員マスタ全体を取得）');
-    var allRows = await GasClient.call('listAll');
+    setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
+    var lists = await GasClient.callListCached(['listRelations', 'listAll'], force);
+    var relations = lists.listRelations;
+    var allRows = lists.listAll;
     setLoadingProgress(100);
     STATE.relations = relations;
     STATE.allRows = allRows;
     pickerList = buildUnifiedList();
     pickerList.sort(function(a,b){ return (a.kana || a.name).localeCompare(b.kana || b.name, 'ja'); });
+    updateLastSyncedLabel();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('pickScreen').style.display = 'block';
     renderPickerList();
-    document.getElementById('pickSearch').addEventListener('input', renderPickerList);
+    if (!pickerSearchBound) {
+      document.getElementById('pickSearch').addEventListener('input', renderPickerList);
+      pickerSearchBound = true;
+    }
   } catch (err) {
-    showLoadingError('読み込みに失敗しました: ' + err.message);
+    if (force) alert('更新に失敗しました: ' + err.message);
+    else showLoadingError('読み込みに失敗しました: ' + err.message);
   }
 }
+var pickerSearchBound = false;
+
+function updateLastSyncedLabel(){
+  var metas = ['listRelations', 'listAll'].map(GasClient.getCacheMeta).filter(Boolean);
+  var label = document.getElementById('lastSyncedLabel');
+  if (!label) return;
+  if (!metas.length) { label.textContent = ''; return; }
+  var oldest = Math.min.apply(null, metas.map(function(m){ return m.checkedAt; }));
+  var d = new Date(oldest);
+  var hh = String(d.getHours()).padStart(2, '0');
+  var mm = String(d.getMinutes()).padStart(2, '0');
+  label.textContent = '確認: ' + hh + ':' + mm + '時点';
+}
+
+async function refreshData(){
+  // 既存の表示内容は保持したまま裏側で再取得し、成功時のみ再描画する（失敗時も画面が消えないように）
+  var btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '取得中…';
+  try {
+    if (idParam) await boot(true);
+    else await renderPicker(true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 最新を取得';
+  }
+}
+document.getElementById('refreshBtn').addEventListener('click', refreshData);
 
 if (!idParam) {
   renderPicker();

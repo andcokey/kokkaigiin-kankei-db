@@ -37,6 +37,9 @@ function handle(e) {
     var action = params.action;
     var result;
     switch (action) {
+      case 'checkUpdated':
+        result = checkUpdated();
+        break;
       case 'listAll':
         result = listLegislatorsAll();
         break;
@@ -180,6 +183,27 @@ function extractPage(page, fieldMap) {
 }
 
 /* ---------------- アクション実装 ---------------- */
+
+/**
+ * listAll/listRelations/listContactsAll のキャッシュ有効性をフロント側が判定するための軽量チェック。
+ * 各データソースをpage_size=1・last_edited_time降順で問い合わせ、最新更新時刻のみ返す（フルページネーションなし）。
+ */
+function checkUpdated() {
+  var targets = {
+    legislatorsAll: DATA_SOURCES.legislatorsAll,
+    relations: DATA_SOURCES.relations,
+    contacts: DATA_SOURCES.contacts
+  };
+  var out = {};
+  for (var key in targets) {
+    var page = notionFetch('data_sources/' + targets[key] + '/query', 'post', {
+      page_size: 1,
+      sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }]
+    });
+    out[key] = (page.results[0] && page.results[0].last_edited_time) || null;
+  }
+  return out;
+}
 
 var ALL_FIELDS = {
   name: '氏名', kana: '読み', house: '議院', party: '政党', district: '選挙区',

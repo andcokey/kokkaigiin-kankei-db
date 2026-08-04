@@ -44,6 +44,10 @@
   .headlinks{display:flex; gap:14px; align-items:center; font-size:12.5px;}
   .headlinks a{color:var(--accent); text-decoration:none; cursor:pointer;}
   .headlinks a:hover{text-decoration:underline;}
+  .headlinks .last-synced{color:var(--ink-faint); font-size:11px; white-space:nowrap;}
+  .headlinks button{font:inherit; font-size:12.5px; font-weight:600; color:var(--ink-soft); background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:5px 12px; cursor:pointer;}
+  .headlinks button:hover{border-color:var(--accent); color:var(--accent);}
+  .headlinks button:disabled{opacity:.5; cursor:default;}
 
   .filterbar{
     display:flex; align-items:center; gap:18px; flex-wrap:wrap;
@@ -167,6 +171,8 @@
         <div class="subtitle">全体サマリ</div>
       </div>
       <div class="headlinks">
+        <span class="last-synced" id="lastSyncedLabel"></span>
+        <button id="refreshBtn" type="button">🔄 最新を取得</button>
         <a id="reconfigureLink">GAS接続設定を変更</a>
       </div>
     </header>
@@ -280,16 +286,24 @@ function goToDetail(ev, legislatorId){
   // 単独表示（iframeの外）の場合は通常のリンク遷移に任せる
 }
 
-async function boot(){
+function updateLastSyncedLabel(){
+  const metas = ['listAll', 'listRelations', 'listContactsAll'].map(GasClient.getCacheMeta).filter(Boolean);
+  const label = document.getElementById('lastSyncedLabel');
+  if (!label) return;
+  if (!metas.length) { label.textContent = ''; return; }
+  const oldest = Math.min(...metas.map(m => m.checkedAt));
+  const d = new Date(oldest);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  label.textContent = '確認: ' + hh + ':' + mm + '時点';
+}
+
+async function boot(force){
   try {
-    const [allRows, relations, contacts] = await Promise.all([
-      GasClient.call('listAll'),
-      GasClient.call('listRelations'),
-      GasClient.call('listContactsAll')
-    ]);
-    ALL_ROWS = allRows;
-    RELATIONS = relations;
-    CONTACTS = contacts;
+    const lists = await GasClient.callListCached(['listAll', 'listRelations', 'listContactsAll'], force);
+    ALL_ROWS = lists.listAll;
+    RELATIONS = lists.listRelations;
+    CONTACTS = lists.listContactsAll;
 
     const freq = {};
     ALL_ROWS.forEach(r => { if (r.party) freq[r.party] = (freq[r.party]||0) + 1; });
@@ -297,6 +311,7 @@ async function boot(){
     PARTY_ORDER.forEach((p,i) => { PARTY_COLORS[p] = i < 8 ? ENTITY_COLOR_ORDER[i] : OTHER_COLOR; });
     filter.parties = new Set(PARTY_ORDER);
 
+    updateLastSyncedLabel();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
 
@@ -304,6 +319,7 @@ async function boot(){
     document.querySelectorAll(".chart-unit").forEach(buildChartUnit);
     renderAll();
   } catch (err) {
+    if (force) { alert('更新に失敗しました: ' + err.message); return; }
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('errorScreen').style.display = 'block';
     document.getElementById('errorMsg').textContent = '読み込みに失敗しました: ' + err.message;
@@ -321,6 +337,7 @@ function filteredRelationIds(){
 
 function renderPartyChips(){
   const el = document.getElementById("partyChips");
+  el.innerHTML = "";
   PARTY_ORDER.forEach(p => {
     const chip = document.createElement("span");
     chip.className = "chip active"; chip.dataset.party = p;
@@ -571,6 +588,18 @@ document.getElementById("retryBtn").addEventListener("click", () => {
   document.getElementById('errorScreen').style.display = 'none';
   document.getElementById('loadingScreen').style.display = 'block';
   boot();
+});
+document.getElementById("refreshBtn").addEventListener("click", async () => {
+  // 既存の表示内容は保持したまま裏側で再取得し、成功時のみ再描画する（失敗時も画面が消えないように）
+  const btn = document.getElementById("refreshBtn");
+  btn.disabled = true;
+  btn.textContent = "取得中…";
+  try {
+    await boot(true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔄 最新を取得";
+  }
 });
 
 boot();
