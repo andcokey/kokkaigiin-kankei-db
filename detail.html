@@ -96,7 +96,6 @@
   }
   .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
   .refresh-btn:disabled { opacity: .5; cursor: default; }
-  .last-synced { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
   .sidebar-close-btn { display: none; }
   .sidebar-backdrop { display: none; }
   .sidebar .label { font-size: 11px; letter-spacing: .08em; color: var(--ink-faint); text-transform: uppercase; margin: 0 0 8px 2px; }
@@ -314,7 +313,6 @@
       <div class="name">議員関係DB</div>
     </a>
     <div class="crumb"><a href="index.html" id="crumbSummaryLink">全体サマリ</a> &nbsp;›&nbsp; <b id="crumbName">議員詳細</b></div>
-    <span class="last-synced" id="lastSyncedLabel"></span>
     <button class="refresh-btn" id="refreshBtn" type="button">🔄 最新を取得</button>
     <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button">議員を切替 ▾</button>
   </div>
@@ -667,7 +665,7 @@ function showLoadingError(text){
 async function boot(force){
   try {
     setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
-    var lists = await GasClient.callListCached(['listRelations', 'listAll'], force);
+    var lists = await GasClient.fetchLists(['listRelations', 'listAll'], force);
     var relations = lists.listRelations;
     var allRows = lists.listAll;
     setLoadingProgress(50);
@@ -697,7 +695,6 @@ async function boot(force){
     }
     setLoadingProgress(100);
 
-    updateLastSyncedLabel();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'grid';
     document.getElementById('crumbName').textContent = STATE.person.name;
@@ -1084,7 +1081,7 @@ function renderPickerList(){
 async function renderPicker(force){
   try {
     setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
-    var lists = await GasClient.callListCached(['listRelations', 'listAll'], force);
+    var lists = await GasClient.fetchLists(['listRelations', 'listAll'], force);
     var relations = lists.listRelations;
     var allRows = lists.listAll;
     setLoadingProgress(100);
@@ -1092,7 +1089,6 @@ async function renderPicker(force){
     STATE.allRows = allRows;
     pickerList = buildUnifiedList();
     pickerList.sort(function(a,b){ return (a.kana || a.name).localeCompare(b.kana || b.name, 'ja'); });
-    updateLastSyncedLabel();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('pickScreen').style.display = 'block';
     renderPickerList();
@@ -1106,18 +1102,6 @@ async function renderPicker(force){
   }
 }
 var pickerSearchBound = false;
-
-function updateLastSyncedLabel(){
-  var metas = ['listRelations', 'listAll'].map(GasClient.getCacheMeta).filter(Boolean);
-  var label = document.getElementById('lastSyncedLabel');
-  if (!label) return;
-  if (!metas.length) { label.textContent = ''; return; }
-  var oldest = Math.min.apply(null, metas.map(function(m){ return m.checkedAt; }));
-  var d = new Date(oldest);
-  var hh = String(d.getHours()).padStart(2, '0');
-  var mm = String(d.getMinutes()).padStart(2, '0');
-  label.textContent = '確認: ' + hh + ':' + mm + '時点';
-}
 
 async function refreshData(){
   // 既存の表示内容は保持したまま裏側で再取得し、成功時のみ再描画する（失敗時も画面が消えないように）

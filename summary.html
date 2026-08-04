@@ -44,7 +44,6 @@
   .headlinks{display:flex; gap:14px; align-items:center; font-size:12.5px;}
   .headlinks a{color:var(--accent); text-decoration:none; cursor:pointer;}
   .headlinks a:hover{text-decoration:underline;}
-  .headlinks .last-synced{color:var(--ink-faint); font-size:11px; white-space:nowrap;}
   .headlinks button{font:inherit; font-size:12.5px; font-weight:600; color:var(--ink-soft); background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:5px 12px; cursor:pointer;}
   .headlinks button:hover{border-color:var(--accent); color:var(--accent);}
   .headlinks button:disabled{opacity:.5; cursor:default;}
@@ -171,7 +170,6 @@
         <div class="subtitle">全体サマリ</div>
       </div>
       <div class="headlinks">
-        <span class="last-synced" id="lastSyncedLabel"></span>
         <button id="refreshBtn" type="button">🔄 最新を取得</button>
         <a id="reconfigureLink">GAS接続設定を変更</a>
       </div>
@@ -286,21 +284,9 @@ function goToDetail(ev, legislatorId){
   // 単独表示（iframeの外）の場合は通常のリンク遷移に任せる
 }
 
-function updateLastSyncedLabel(){
-  const metas = ['listAll', 'listRelations', 'listContactsAll'].map(GasClient.getCacheMeta).filter(Boolean);
-  const label = document.getElementById('lastSyncedLabel');
-  if (!label) return;
-  if (!metas.length) { label.textContent = ''; return; }
-  const oldest = Math.min(...metas.map(m => m.checkedAt));
-  const d = new Date(oldest);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  label.textContent = '確認: ' + hh + ':' + mm + '時点';
-}
-
 async function boot(force){
   try {
-    const lists = await GasClient.callListCached(['listAll', 'listRelations', 'listContactsAll'], force);
+    const lists = await GasClient.fetchLists(['listAll', 'listRelations', 'listContactsAll'], force);
     ALL_ROWS = lists.listAll;
     RELATIONS = lists.listRelations;
     CONTACTS = lists.listContactsAll;
@@ -311,7 +297,6 @@ async function boot(force){
     PARTY_ORDER.forEach((p,i) => { PARTY_COLORS[p] = i < 8 ? ENTITY_COLOR_ORDER[i] : OTHER_COLOR; });
     filter.parties = new Set(PARTY_ORDER);
 
-    updateLastSyncedLabel();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
 

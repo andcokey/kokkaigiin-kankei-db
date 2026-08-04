@@ -38,16 +38,16 @@ function handle(e) {
     var result;
     switch (action) {
       case 'listAll':
-        result = listLegislatorsAll();
+        result = listLegislatorsAll(params.force);
         break;
       case 'listRelations':
-        result = listRelations();
+        result = listRelations(params.force);
         break;
       case 'getContacts':
         result = getContactsByRelationId(params.relationPageId);
         break;
       case 'listContactsAll':
-        result = listContactsAll();
+        result = listContactsAll(params.force);
         break;
       case 'getQualityNotes':
         result = getQualityNotesByRelationId(params.relationPageId);
@@ -179,6 +179,67 @@ function extractPage(page, fieldMap) {
   return out;
 }
 
+/* ---------------- 共有キャッシュ（CacheService、全ユーザー・全端末で共有） ---------------- */
+
+// listAll/listRelations/listContactsAllは重い（Notionのフルページネーション）ため、
+// 全ユーザーで共有するサーバー側キャッシュを1時間保持する。CacheServiceの1キー100KB制限に
+// 収めるため、JSON文字列をチャンク分割して複数キーに保存する。
+var SHARED_CACHE_TTL_SECONDS = 60 * 60;
+var SHARED_CACHE_CHUNK_SIZE = 90000;
+
+function cacheGetList(action) {
+  var cache = CacheService.getScriptCache();
+  var meta = cache.get(action + '_meta');
+  if (!meta) return null;
+  var count = JSON.parse(meta).chunks;
+  var keys = [];
+  for (var i = 0; i < count; i++) keys.push(action + '_' + i);
+  var parts = cache.getAll(keys);
+  var chunks = [];
+  for (var i = 0; i < count; i++) {
+    var part = parts[action + '_' + i];
+    if (part == null) return null; // 一部でも欠けていればキャッシュ無効とみなす
+    chunks.push(part);
+  }
+  try { return JSON.parse(chunks.join('')); } catch (e) { return null; }
+}
+
+function cacheSetList(action, data) {
+  var cache = CacheService.getScriptCache();
+  var json = JSON.stringify(data);
+  var chunks = [];
+  for (var i = 0; i < json.length; i += SHARED_CACHE_CHUNK_SIZE) {
+    chunks.push(json.slice(i, i + SHARED_CACHE_CHUNK_SIZE));
+  }
+  var payload = { };
+  chunks.forEach(function (c, i) { payload[action + '_' + i] = c; });
+  payload[action + '_meta'] = JSON.stringify({ chunks: chunks.length });
+  cache.putAll(payload, SHARED_CACHE_TTL_SECONDS);
+}
+
+function cacheInvalidateList(action) {
+  var cache = CacheService.getScriptCache();
+  var meta = cache.get(action + '_meta');
+  if (!meta) return;
+  var count = JSON.parse(meta).chunks;
+  var keys = [action + '_meta'];
+  for (var i = 0; i < count; i++) keys.push(action + '_' + i);
+  cache.removeAll(keys);
+}
+
+/**
+ * キャッシュ優先でリストを取得する。force=trueならキャッシュを無視して必ず再取得する。
+ */
+function getCachedList(action, fetchFn, force) {
+  if (!force) {
+    var cached = cacheGetList(action);
+    if (cached) return cached;
+  }
+  var data = fetchFn();
+  cacheSetList(action, data);
+  return data;
+}
+
 /* ---------------- アクション実装 ---------------- */
 
 var ALL_FIELDS = {
@@ -189,13 +250,15 @@ var ALL_FIELDS = {
   relationId: '関係マスタ（重点対象）'
 };
 
-function listLegislatorsAll() {
-  var pages = notionQueryAll(DATA_SOURCES.legislatorsAll);
-  return pages.map(function (p) {
-    var row = extractPage(p, ALL_FIELDS);
-    row.relationId = (row.relationId && row.relationId[0]) || null;
-    return row;
-  });
+function listLegislatorsAll(force) {
+  return getCachedList('listAll', function () {
+    var pages = notionQueryAll(DATA_SOURCES.legislatorsAll);
+    return pages.map(function (p) {
+      var row = extractPage(p, ALL_FIELDS);
+      row.relationId = (row.relationId && row.relationId[0]) || null;
+      return row;
+    });
+  }, force);
 }
 
 var RELATION_FIELDS = {
@@ -207,13 +270,15 @@ var RELATION_FIELDS = {
   allMasterId: '議員マスタ（全体）', contactIds: '接触履歴', qualityNoteIds: 'データ品質メモ'
 };
 
-function listRelations() {
-  var pages = notionQueryAll(DATA_SOURCES.relations);
-  return pages.map(function (p) {
-    var row = extractPage(p, RELATION_FIELDS);
-    row.allMasterId = (row.allMasterId && row.allMasterId[0]) || null;
-    return row;
-  });
+function listRelations(force) {
+  return getCachedList('listRelations', function () {
+    var pages = notionQueryAll(DATA_SOURCES.relations);
+    return pages.map(function (p) {
+      var row = extractPage(p, RELATION_FIELDS);
+      row.allMasterId = (row.allMasterId && row.allMasterId[0]) || null;
+      return row;
+    });
+  }, force);
 }
 
 var CONTACT_FIELDS = {
@@ -230,14 +295,16 @@ function getContactsByRelationId(relationPageId) {
   return pages.map(function (p) { return extractPage(p, CONTACT_FIELDS); });
 }
 
-function listContactsAll() {
-  var sorts = [{ property: '日付', direction: 'descending' }];
-  var pages = notionQueryAll(DATA_SOURCES.contacts, null, sorts);
-  return pages.map(function (p) {
-    var row = extractPage(p, CONTACT_FIELDS);
-    row.relationId = (row.relationIds && row.relationIds[0]) || null;
-    return row;
-  });
+function listContactsAll(force) {
+  return getCachedList('listContactsAll', function () {
+    var sorts = [{ property: '日付', direction: 'descending' }];
+    var pages = notionQueryAll(DATA_SOURCES.contacts, null, sorts);
+    return pages.map(function (p) {
+      var row = extractPage(p, CONTACT_FIELDS);
+      row.relationId = (row.relationIds && row.relationIds[0]) || null;
+      return row;
+    });
+  }, force);
 }
 
 var QUALITY_NOTE_FIELDS = { summary: '概要', item: '項目', content: '内容' };
@@ -276,6 +343,7 @@ function addContact(params) {
     properties: properties
   };
   var page = notionFetch('pages', 'post', body);
+  cacheInvalidateList('listContactsAll');
   return { id: page.id };
 }
 
@@ -326,6 +394,7 @@ function updateRelation(params) {
   if (!params.relationPageId) throw new Error('relationPageId が必要です');
   var properties = buildUpdateProperties(RELATION_FIELDS, RELATION_EDITABLE_TYPES, params);
   notionFetch('pages/' + params.relationPageId, 'patch', { properties: properties });
+  cacheInvalidateList('listRelations');
   return { id: params.relationPageId };
 }
 
@@ -365,6 +434,8 @@ function createRelation(params) {
 
   var body = { parent: { data_source_id: DATA_SOURCES.relations }, properties: properties };
   var page = notionFetch('pages', 'post', body);
+  cacheInvalidateList('listRelations');
+  cacheInvalidateList('listAll'); // 議員マスタ（全体）側の逆リレーション（relationId）も変わるため
   return { id: page.id, legislatorId: legislatorId };
 }
 
@@ -380,6 +451,7 @@ function updateContact(params) {
   if (!params.contactPageId) throw new Error('contactPageId が必要です');
   var properties = buildUpdateProperties(CONTACT_FIELDS, CONTACT_EDITABLE_TYPES, params);
   notionFetch('pages/' + params.contactPageId, 'patch', { properties: properties });
+  cacheInvalidateList('listContactsAll');
   return { id: params.contactPageId };
 }
 
@@ -390,6 +462,7 @@ function updateContact(params) {
 function deleteContact(params) {
   if (!params.contactPageId) throw new Error('contactPageId が必要です');
   notionFetch('pages/' + params.contactPageId, 'patch', { archived: true });
+  cacheInvalidateList('listContactsAll');
   return { id: params.contactPageId, archived: true };
 }
 
@@ -469,6 +542,7 @@ function bulkImport(params) {
       var updateProps = buildUpdateProperties(RELATION_FIELDS, RELATION_EDITABLE_TYPES, nonEmptyRow, false);
       if (Object.keys(updateProps).length) {
         notionFetch('pages/' + resolved.id, 'patch', { properties: updateProps });
+        cacheInvalidateList('listRelations');
       }
 
       var contactAdded = false;

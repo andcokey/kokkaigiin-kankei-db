@@ -77,14 +77,13 @@ detail.html上の各項目（基本情報・現状・社内担当・送付先情
 
 ### キャッシュによる高速化（2026-08-04追加）
 
-`listAll`（議員マスタ712件）・`listRelations`（関係マスタ41件）・`listContactsAll`（接触履歴225件）は、ページを開くたびにNotionからフル取得すると重いため、ブラウザのlocalStorageにキャッシュする方式にした。
+`listAll`（議員マスタ712件）・`listRelations`（関係マスタ41件）・`listContactsAll`（接触履歴225件）は、ページを開くたびにNotionからフル取得すると重いため、GAS側（`CacheService.getScriptCache()`）で1時間キャッシュする方式にした。ブラウザのlocalStorageではなくGAS側でキャッシュしているため、**全ユーザー・全端末で共有される**（誰かが1時間以内に一度取得していれば、他の人が別のブラウザで開いても高速）。
 
-- `gas-client.js`の`GasClient.callListCached(actions, force)`が窓口。直近1時間以内に取得済みのキャッシュがあれば通信なしでそのまま返す。1時間を過ぎている場合、またはキャッシュが無い場合のみ素直にGASへ取りに行く（更新有無を事前確認する往復は挟まない。往復を増やすとGAS側の一時的な不調に当たりやすくなるため、シンプルさを優先）。
-- 取得に失敗した場合（GAS側の一時的な不調でHTMLエラーページが返る等）、古いキャッシュがあればそれを代わりに表示し、画面が真っ白/エラーにならないようにしている。
-- 各ページ右上の「🔄 最新を取得」ボタンで、キャッシュを無視して即座に最新化できる（`force=true`）。
-- 書き込み系アクション（`updateRelation`/`createRelation`/`addContact`/`updateContact`/`deleteContact`/`bulkImport`）が成功すると、影響するキャッシュ（例: `updateRelation`→`listRelations`）を自動的に無効化し、次回は必ず最新を取得する。
-- キャッシュはブラウザ（端末）ごとに独立している。GAS接続設定を変更（`GasClient.resetConfig()`）した際もキャッシュはクリアされる。
-- フロント側（`gas-client.js`）のみの変更なので、`gas/Code.gs`・GASデプロイは変更不要。
+- `gas/Code.gs`の`getCachedList(action, fetchFn, force)`が窓口。`listLegislatorsAll`/`listRelations`/`listContactsAll`はこれをラップしている。CacheServiceの1キー100KB制限に収めるため、JSON文字列をチャンク分割して複数キーに保存する（`cacheGetList`/`cacheSetList`/`cacheInvalidateList`）。
+- 各ページ右上の「🔄 最新を取得」ボタンを押すと、`{force: true}`パラメータが送られ、キャッシュを無視してNotionから直接取得する。
+- 書き込み系アクション（`updateRelation`/`createRelation`/`addContact`/`updateContact`/`deleteContact`/`bulkImport`）が成功すると、影響するキャッシュ（例: `updateRelation`→`listRelations`）をGAS側で自動的に無効化し、次回は誰であっても必ず最新を取得する。
+- フロント側（`gas-client.js`の`GasClient.fetchLists(actions, force)`）はキャッシュを持たず、単純にGASへ問い合わせるだけ（余計な往復を増やさないことで、GAS側の一時的な不調に当たる確率も下げている）。
+- **`gas/Code.gs`を変更しているため、script.google.comの既存プロジェクトを開いて「新しいバージョンをデプロイ」で反映する必要がある**（デプロイURLは変わらない）。`CacheService`は追加のOAuth権限承認を必要としないため、再デプロイ時に新たな承認画面が出ることはない想定。
 
 ## 既知の制約・今後の課題
 

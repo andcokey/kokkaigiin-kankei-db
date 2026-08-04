@@ -55,7 +55,6 @@
   }
   .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
   .refresh-btn:disabled { opacity: .5; cursor: default; }
-  .last-synced { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
 
   h1 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
   .lead { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
@@ -119,7 +118,6 @@
       <div class="name">議員関係DB</div>
     </a>
     <div class="crumb"><a href="index.html" id="crumbSummaryLink">全体サマリ</a> &nbsp;›&nbsp; <b>一括追加</b></div>
-    <span class="last-synced" id="lastSyncedLabel"></span>
     <button class="refresh-btn" id="refreshBtn" type="button">🔄 最新を取得</button>
   </div>
 
@@ -259,23 +257,10 @@ function readFileSmart(file) {
 
 var STATE = { relations: [], allRows: [], parsedRows: [] };
 
-function updateLastSyncedLabel() {
-  var metas = ['listRelations', 'listAll'].map(GasClient.getCacheMeta).filter(Boolean);
-  var label = document.getElementById('lastSyncedLabel');
-  if (!label) return;
-  if (!metas.length) { label.textContent = ''; return; }
-  var oldest = Math.min.apply(null, metas.map(function (m) { return m.checkedAt; }));
-  var d = new Date(oldest);
-  var hh = String(d.getHours()).padStart(2, '0');
-  var mm = String(d.getMinutes()).padStart(2, '0');
-  label.textContent = '確認: ' + hh + ':' + mm + '時点';
-}
-
 async function loadMasters(force) {
-  var lists = await GasClient.callListCached(['listRelations', 'listAll'], force);
+  var lists = await GasClient.fetchLists(['listRelations', 'listAll'], force);
   STATE.relations = lists.listRelations;
   STATE.allRows = lists.listAll;
-  updateLastSyncedLabel();
 }
 loadMasters().catch(function (err) {
   document.getElementById('parseError').textContent = '議員一覧の取得に失敗しました: ' + err.message;
