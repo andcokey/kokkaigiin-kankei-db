@@ -119,8 +119,9 @@
   .dossier-head .identity { display: flex; gap: 16px; min-width: 0; }
   .photo {
     flex-shrink: 0; width: 64px; height: 64px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong);
-    display: flex; align-items: center; justify-content: center; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); overflow: hidden;
   }
+  .photo img { width: 100%; height: 100%; object-fit: cover; }
   .dossier-head .who .name { font-size: 26px; font-weight: 500; }
   .dossier-head .who .sub { margin-top: 4px; font-size: 13.5px; color: var(--ink-soft); }
   .badges { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
@@ -349,7 +350,7 @@
       <div class="dossier">
         <div class="dossier-head">
           <div class="identity">
-            <div class="photo" title="顔写真は未登録">
+            <div class="photo" id="hPhoto" title="顔写真は未登録">
               <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="4"></circle><path d="M4 20c0-4.2 3.6-6.4 8-6.4s8 2.2 8 6.4"></path></svg>
             </div>
             <div class="who">
@@ -766,6 +767,14 @@ function renderDossier(){
 
   document.getElementById('hName').textContent = person.name;
   document.getElementById('hSub').textContent = [person.party, person.house, person.district].filter(Boolean).join(' ／ ');
+  var hPhoto = document.getElementById('hPhoto');
+  if (all && all.photoUrl) {
+    hPhoto.title = '';
+    hPhoto.innerHTML = '<img src="' + escAttr(all.photoUrl) + '" alt="' + escAttr(person.name) + 'の顔写真" loading="lazy">';
+  } else {
+    hPhoto.title = '顔写真は未登録';
+    hPhoto.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="4"></circle><path d="M4 20c0-4.2 3.6-6.4 8-6.4s8 2.2 8 6.4"></path></svg>';
+  }
   document.getElementById('hBadges').innerHTML =
     '<span class="badge b-type">議院：'+(person.house||'不明')+'</span>' +
     '<span class="badge b-cat">政党：'+(person.party||'不明')+'</span>' +
@@ -812,7 +821,17 @@ function renderDossier(){
     : 'この議員は関係マスタに未登録です';
 
   if (all) {
-    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService);
+    var expiryHtml = '';
+    if (all.domainExpiry) {
+      var expiryDays = Math.round((new Date(all.domainExpiry) - new Date()) / 86400000);
+      var expiryColor = expiryDays < 0 ? 'var(--seal)' : (expiryDays <= 30 ? 'var(--gold)' : '');
+      var expiryStyle = expiryColor ? ' style="color:' + expiryColor + ';font-weight:600;"' : '';
+      expiryHtml = '<div class="kv"><span class="k">有効期限</span><span class="v"' + expiryStyle + '>' + all.domainExpiry +
+        (expiryDays < 0 ? '（期限切れ）' : (expiryDays <= 30 ? '（残り' + expiryDays + '日）' : '')) + '</span></div>';
+    } else {
+      expiryHtml = kv('有効期限', null);
+    }
+    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService) + expiryHtml;
     document.getElementById('fgServer').innerHTML = '<div class="fg-title">サーバー</div>' + kv('会社', all.serverCompany) + kv('サービス', all.serverService);
     document.getElementById('fgSsl').innerHTML = '<div class="fg-title">SSL</div>' + kv('ベンダー', all.sslVendor) +
       '<div class="kv"><span class="k">サイトシール</span><span class="v ' + (all.siteSeal==='サイトシール有'?'seal-yes':'seal-no') + '">' + (all.siteSeal||'—').replace('サイトシール','') + '</span></div>';

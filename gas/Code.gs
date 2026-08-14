@@ -70,6 +70,9 @@ function handle(e) {
       case 'bulkImport':
         result = bulkImport(params);
         break;
+      case 'bulkUpdateDomainExpiry':
+        result = bulkUpdateDomainExpiry(params);
+        break;
       case 'getNews':
         result = getNews(params);
         break;
@@ -164,6 +167,8 @@ function extractProp(prop) {
       return prop.number;
     case 'date':
       return prop.date ? prop.date.start : null;
+    case 'url':
+      return prop.url || null;
     case 'relation':
       return (prop.relation || []).map(function (r) { return r.id; });
     default:
@@ -245,6 +250,7 @@ function getCachedList(action, fetchFn, force) {
 var ALL_FIELDS = {
   name: '氏名', kana: '読み', house: '議院', party: '政党', district: '選挙区',
   domain: 'ドメイン', domainService: 'ドメイン管理サービス', domainCompany: 'ドメイン管理会社',
+  domainExpiry: 'ドメイン有効期限', photoUrl: '顔写真URL',
   serverService: 'サーバー管理サービス', serverCompany: 'サーバー管理会社',
   sslVendor: 'SSLベンダー', siteSeal: 'サイトシール', currentPost: '現職役職',
   relationId: '関係マスタ（重点対象）'
@@ -569,6 +575,57 @@ function bulkImport(params) {
     }
   });
 
+  return { results: results };
+}
+
+/* ---------------- ドメイン有効期限の一括更新（CSV） ---------------- */
+
+/**
+ * CSVの1行から議員マスタ（全体）の対象ページを解決する。
+ * ドメイン指定があればドメインの完全一致を優先（表記ゆれ・同姓同名を避けられるため）、
+ * 無ければ氏名の完全一致で解決する。0件・複数件はエラーとする（推測して更新しない）。
+ */
+function resolveLegislatorForDomainRow(row, allRows) {
+  var matches;
+  if (row.domain) {
+    matches = allRows.filter(function (r) { return r.domain === row.domain; });
+    if (!matches.length) throw new Error('ドメイン "' + row.domain + '" が議員マスタ（全体）に見つかりません');
+  } else {
+    if (!row.name) throw new Error('氏名またはドメインが必要です');
+    matches = allRows.filter(function (r) { return r.name === row.name; });
+    if (!matches.length) throw new Error('氏名 "' + row.name + '" が議員マスタ（全体）に見つかりません');
+  }
+  if (matches.length > 1) throw new Error('複数の候補が見つかりました（ドメインを指定して絞り込んでください）');
+  return matches[0];
+}
+
+/**
+ * CSVから議員マスタ（全体）のドメイン有効期限を一括更新する。
+ * params: rows = [{ name(氏名, optional), domain(ドメイン, 一致確認・絞り込み用, optional), expiry(有効期限, YYYY-MM-DD) }, ...]
+ * name/domainのいずれかで対象議員を一意に特定できる行のみ更新する。1行の失敗は他の行に影響しない。
+ */
+function bulkUpdateDomainExpiry(params) {
+  if (!params.rows || !params.rows.length) throw new Error('rowsが必要です');
+
+  var allRows = listLegislatorsAll();
+  var results = [];
+
+  params.rows.forEach(function (row, idx) {
+    var rowNo = idx + 1;
+    var displayName = row.name || row.domain || ('行' + rowNo);
+    try {
+      if (!row.expiry) throw new Error('有効期限が必要です');
+      var legislator = resolveLegislatorForDomainRow(row, allRows);
+      notionFetch('pages/' + legislator.id, 'patch', {
+        properties: { 'ドメイン有効期限': { date: { start: row.expiry } } }
+      });
+      results.push({ row: rowNo, name: legislator.name, domain: legislator.domain, error: null });
+    } catch (err) {
+      results.push({ row: rowNo, name: displayName, error: String(err.message || err) });
+    }
+  });
+
+  cacheInvalidateList('listAll');
   return { results: results };
 }
 
