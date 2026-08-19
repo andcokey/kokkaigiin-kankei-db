@@ -163,7 +163,8 @@
   .hist-head h2 { font-size: 18px; font-weight: 500; }
   .hist-head .hint { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
 
-  .hist-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .hist-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .hist-filters { display: flex; flex-direction: column; gap: 8px; }
   .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { font-size: 12px; padding: 5px 12px; border-radius: 100px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); cursor: pointer; user-select: none; }
   .chip:hover { border-color: var(--accent); }
@@ -199,6 +200,12 @@
   .field-hidden { display: none !important; }
   .add-form .hint { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
   .add-form .err { font-size: 12px; color: var(--seal); }
+  .add-form .tag-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+  .add-form .tag-picker .chip { background: var(--surface); }
+  .add-form .tag-add-row { display: flex; gap: 6px; margin-top: 8px; }
+  .add-form .tag-add-row input { flex: 1; }
+
+  .staff-chip-wrap .chip-label { font-size: 11px; color: var(--ink-faint); margin-right: 6px; }
 
   .ledger { position: relative; padding-left: 2px; }
   .ledger::before { content: ""; position: absolute; left: 84px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
@@ -392,11 +399,14 @@
 
       <div id="histRelationBlock">
         <div class="hist-toolbar">
-          <div class="chip-row" id="typeChips">
-            <span class="chip active" data-type="all">すべて</span>
-            <span class="chip" data-type="面談">面談</span>
-            <span class="chip" data-type="贈答">贈答</span>
-            <span class="chip" data-type="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</span>
+          <div class="hist-filters">
+            <div class="chip-row" id="typeChips">
+              <span class="chip active" data-type="all">すべて</span>
+              <span class="chip" data-type="面談">面談</span>
+              <span class="chip" data-type="贈答">贈答</span>
+              <span class="chip" data-type="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</span>
+            </div>
+            <div class="chip-row staff-chip-wrap" id="staffChips"></div>
           </div>
           <button class="add-btn" id="addToggle" type="button">＋ 履歴を追加</button>
         </div>
@@ -414,12 +424,25 @@
             <label>日付
               <input type="date" id="f-date" />
             </label>
+            <label>どこで
+              <input type="text" id="f-place" placeholder="例：議員会館第一議員会館" />
+            </label>
             <label id="f-amount-label" class="field-hidden">金額（円）
               <input type="number" id="f-amount" placeholder="200000" />
             </label>
           </div>
+          <label class="memo-row">誰が（複数選択可）
+            <div class="tag-picker" id="f-staff-picker"></div>
+            <div class="tag-add-row">
+              <input type="text" id="f-staff-new" placeholder="リストにない名前を追加" />
+              <button class="btn-secondary" id="f-staff-add-btn" type="button">＋ リストに追加</button>
+            </div>
+          </label>
           <label class="memo-row">内容
-            <textarea id="f-content" placeholder="例：新サービスの規制対応について意見交換／議員会館第一議員会館にて"></textarea>
+            <textarea id="f-content" placeholder="例：新サービスの規制対応について意見交換"></textarea>
+          </label>
+          <label class="memo-row">お手土産
+            <textarea id="f-gift" placeholder="任意（例：地元名産のお菓子）"></textarea>
           </label>
           <label class="memo-row">備考
             <textarea id="f-note" placeholder="任意"></textarea>
@@ -467,10 +490,11 @@ var idParam = qs.get('id');
 var STATE = {
   relations: [], allRows: [], unified: [],
   activeRelation: null, activeAllRow: null, person: null,
-  contacts: [], qualityNotes: [], activeType: 'all',
+  contacts: [], qualityNotes: [], activeType: 'all', activeStaff: 'all',
   sidebarMode: 'party',
   editingGroup: null, editingContactId: null,
   ledgerExpanded: false,
+  staffOptions: [], selectedStaff: [],
   news: [], newsExpanded: false, newsLoading: false, newsError: null
 };
 var LEDGER_COLLAPSED_COUNT = 5;
@@ -690,9 +714,11 @@ async function boot(force){
       STATE.contacts = await GasClient.call('getContacts', { relationPageId: resolved.rel.id });
       setLoadingProgress(75, '読み込み中…（データ品質メモを取得）');
       STATE.qualityNotes = await GasClient.call('getQualityNotes', { relationPageId: resolved.rel.id });
+      STATE.staffOptions = await GasClient.call('getStaffOptions', {});
     } else {
       STATE.contacts = [];
       STATE.qualityNotes = [];
+      STATE.staffOptions = [];
     }
     setLoadingProgress(100);
 
@@ -704,7 +730,9 @@ async function boot(force){
     renderSidebar(STATE.sidebarMode || 'party');
     renderDossier();
     renderQualityBanner();
+    renderStaffChips();
     renderLedger();
+    renderStaffPicker();
     loadNews(); // ページ表示をブロックしないよう非同期・fire-and-forgetで実行
   } catch (err) {
     if (force) alert('更新に失敗しました: ' + err.message);
@@ -863,15 +891,42 @@ function renderQualityBanner(){
     STATE.qualityNotes.map(function(n){ return '・[' + n.item + '] ' + n.content; }).join('<br>') + '</div>';
 }
 
+function renderStaffChips(){
+  var el = document.getElementById('staffChips');
+  var names = {};
+  STATE.contacts.forEach(function(c){ (c.staff || []).forEach(function(n){ names[n] = true; }); });
+  var list = Object.keys(names).sort();
+  if (!list.length) { el.innerHTML = ''; STATE.activeStaff = 'all'; return; }
+  if (STATE.activeStaff !== 'all' && names[STATE.activeStaff] === undefined) STATE.activeStaff = 'all';
+  el.innerHTML = '<span class="chip-label">誰が：</span>' +
+    '<span class="chip' + (STATE.activeStaff === 'all' ? ' active' : '') + '" data-staff="all">すべて</span>' +
+    list.map(function(n){
+      return '<span class="chip' + (STATE.activeStaff === n ? ' active' : '') + '" data-staff="' + escAttr(n) + '">' + escAttr(n) + '</span>';
+    }).join('');
+}
+document.getElementById('staffChips').addEventListener('click', function(ev){
+  var chip = ev.target.closest('.chip');
+  if (!chip) return;
+  STATE.activeStaff = chip.getAttribute('data-staff');
+  renderStaffChips();
+  renderLedger();
+});
+
 function renderLedger(){
   var el = document.getElementById('ledger');
   var toggleWrap = document.getElementById('ledgerToggleWrap');
   var rows = STATE.contacts.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
   if (STATE.activeType !== 'all') rows = rows.filter(function(c){ return c.type === STATE.activeType; });
+  if (STATE.activeStaff !== 'all') rows = rows.filter(function(c){ return (c.staff || []).indexOf(STATE.activeStaff) !== -1; });
   if (!rows.length) { el.innerHTML = '<div class="empty-state">該当する履歴がありません</div>'; toggleWrap.style.display = 'none'; return; }
   var visibleRows = STATE.ledgerExpanded ? rows : rows.slice(0, LEDGER_COLLAPSED_COUNT);
   el.innerHTML = visibleRows.map(function(c){
     var amountLine = c.amount ? '　金額：' + fmtYen(c.amount) : '';
+    var metaBits = [];
+    if (c.staff && c.staff.length) metaBits.push('誰が：' + c.staff.join('・'));
+    if (c.place) metaBits.push('どこで：' + c.place);
+    if (c.gift) metaBits.push('お手土産：' + c.gift);
+    var metaLine = metaBits.length ? '<div class="who-did">' + metaBits.map(escAttr).join('　') + '</div>' : '';
     return '<div class="entry" data-type="' + c.type + '" data-id="' + escAttr(c.id) + '">' +
       '<div class="date tnum">' + (c.date || 'ー') + '</div>' +
       '<div class="content">' +
@@ -882,6 +937,7 @@ function renderLedger(){
           '</span>' +
         '</div>' +
         '<div class="memo">' + (c.content || '') + amountLine + (c.note ? '　' + c.note : '') + '</div>' +
+        metaLine +
       '</div>' +
     '</div>';
   }).join('');
@@ -964,6 +1020,34 @@ document.getElementById('ledger').addEventListener('click', function(ev){
   else deleteContactEntry(contact);
 });
 
+function renderStaffPicker(){
+  var el = document.getElementById('f-staff-picker');
+  (STATE.selectedStaff || []).forEach(function(n){
+    if (STATE.staffOptions.indexOf(n) === -1) STATE.staffOptions.push(n);
+  });
+  el.innerHTML = STATE.staffOptions.map(function(n){
+    var active = STATE.selectedStaff.indexOf(n) !== -1;
+    return '<span class="chip' + (active ? ' active' : '') + '" data-staff="' + escAttr(n) + '">' + escAttr(n) + '</span>';
+  }).join('');
+}
+document.getElementById('f-staff-picker').addEventListener('click', function(ev){
+  var chip = ev.target.closest('.chip');
+  if (!chip) return;
+  var name = chip.getAttribute('data-staff');
+  var idx = STATE.selectedStaff.indexOf(name);
+  if (idx === -1) STATE.selectedStaff.push(name); else STATE.selectedStaff.splice(idx, 1);
+  renderStaffPicker();
+});
+document.getElementById('f-staff-add-btn').addEventListener('click', function(){
+  var input = document.getElementById('f-staff-new');
+  var name = input.value.trim();
+  if (!name) return;
+  if (STATE.staffOptions.indexOf(name) === -1) STATE.staffOptions.push(name);
+  if (STATE.selectedStaff.indexOf(name) === -1) STATE.selectedStaff.push(name);
+  input.value = '';
+  renderStaffPicker();
+});
+
 function startEditContact(contact){
   STATE.editingContactId = contact.id;
   fType.value = contact.type;
@@ -971,6 +1055,10 @@ function startEditContact(contact){
   document.getElementById('f-content').value = contact.content || '';
   document.getElementById('f-note').value = contact.note || '';
   document.getElementById('f-amount').value = contact.amount || '';
+  document.getElementById('f-place').value = contact.place || '';
+  document.getElementById('f-gift').value = contact.gift || '';
+  STATE.selectedStaff = (contact.staff || []).slice();
+  renderStaffPicker();
   syncFormFields();
   addForm.classList.add('open');
   document.querySelector('#addForm .fg-title').textContent = '履歴を編集';
@@ -984,6 +1072,7 @@ async function deleteContactEntry(contact){
     await GasClient.call('deleteContact', { contactPageId: contact.id });
     STATE.contacts = await GasClient.call('getContacts', { relationPageId: STATE.activeRelation.id });
     renderDossier();
+    renderStaffChips();
     renderLedger();
   } catch (err) {
     window.alert('削除に失敗しました: ' + err.message);
@@ -1023,6 +1112,11 @@ function resetAddForm(){
   document.getElementById('f-content').value = '';
   document.getElementById('f-note').value = '';
   document.getElementById('f-amount').value = '';
+  document.getElementById('f-place').value = '';
+  document.getElementById('f-gift').value = '';
+  document.getElementById('f-staff-new').value = '';
+  STATE.selectedStaff = [];
+  renderStaffPicker();
   document.getElementById('addErr').textContent = '';
 }
 document.getElementById('addCancel').addEventListener('click', resetAddForm);
@@ -1036,6 +1130,9 @@ document.getElementById('addSubmit').addEventListener('click', async function(){
   var content = document.getElementById('f-content').value.trim();
   var note = document.getElementById('f-note').value.trim();
   var amount = document.getElementById('f-amount').value;
+  var place = document.getElementById('f-place').value.trim();
+  var gift = document.getElementById('f-gift').value.trim();
+  var staff = STATE.selectedStaff.slice();
   if (!content) { errEl.textContent = '内容を入力してください'; return; }
 
   btn.disabled = true;
@@ -1049,7 +1146,10 @@ document.getElementById('addSubmit').addEventListener('click', async function(){
         content: content,
         note: note,
         summary: summary,
-        amount: (type !== '面談') ? (amount === '' ? null : amount) : null
+        amount: (type !== '面談') ? (amount === '' ? null : amount) : null,
+        staff: staff,
+        place: place,
+        gift: gift
       });
     } else {
       await GasClient.call('addContact', {
@@ -1059,11 +1159,16 @@ document.getElementById('addSubmit').addEventListener('click', async function(){
         content: content,
         note: note,
         summary: summary,
-        amount: (type !== '面談' && amount) ? amount : undefined
+        amount: (type !== '面談' && amount) ? amount : undefined,
+        staff: staff,
+        place: place,
+        gift: gift
       });
     }
     STATE.contacts = await GasClient.call('getContacts', { relationPageId: STATE.activeRelation.id });
+    STATE.staffOptions = await GasClient.call('getStaffOptions', {});
     renderDossier();
+    renderStaffChips();
     renderLedger();
     resetAddForm();
   } catch (err) {

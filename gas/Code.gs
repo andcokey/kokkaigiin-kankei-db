@@ -49,6 +49,9 @@ function handle(e) {
       case 'listContactsAll':
         result = listContactsAll(params.force);
         break;
+      case 'getStaffOptions':
+        result = getStaffOptions();
+        break;
       case 'getQualityNotes':
         result = getQualityNotesByRelationId(params.relationPageId);
         break;
@@ -163,6 +166,8 @@ function extractProp(prop) {
       return (prop.rich_text || []).map(function (t) { return t.plain_text; }).join('');
     case 'select':
       return prop.select ? prop.select.name : null;
+    case 'multi_select':
+      return (prop.multi_select || []).map(function (s) { return s.name; });
     case 'number':
       return prop.number;
     case 'date':
@@ -290,7 +295,7 @@ function listRelations(force) {
 var CONTACT_FIELDS = {
   summary: '概要', type: '種別', date: '日付', content: '内容',
   amount: '金額_円', units: '口数', note: '備考', rawText: '元テキスト',
-  relationIds: '対象議員'
+  relationIds: '対象議員', staff: '対応者', place: '場所', gift: 'お手土産'
 };
 
 function getContactsByRelationId(relationPageId) {
@@ -313,6 +318,18 @@ function listContactsAll(force) {
   }, force);
 }
 
+/**
+ * 接触履歴「対応者」列の選択肢一覧を返す（フロントの入力候補・絞り込みチップ用）。
+ * 新しい名前を追加したい場合は入力フォームで自由入力すれば、addContact/updateContact時に
+ * Notion側へ新しい選択肢として自動追加される（このリストにも次回以降反映される）。
+ */
+function getStaffOptions() {
+  var ds = notionFetch('data_sources/' + DATA_SOURCES.contacts, 'get');
+  var prop = ds.properties && ds.properties['対応者'];
+  if (!prop || !prop.multi_select) return [];
+  return prop.multi_select.options.map(function (o) { return o.name; });
+}
+
 var QUALITY_NOTE_FIELDS = { summary: '概要', item: '項目', content: '内容' };
 
 function getQualityNotesByRelationId(relationPageId) {
@@ -324,7 +341,8 @@ function getQualityNotesByRelationId(relationPageId) {
 
 /**
  * 履歴を追加（面談 / セミナー献金〈パーティー券購入〉）
- * params: relationPageId, type(種別), date(YYYY-MM-DD), content(内容), note(備考), amount(金額_円, optional)
+ * params: relationPageId, type(種別), date(YYYY-MM-DD), content(内容), note(備考), amount(金額_円, optional),
+ *         staff(対応者, string[], optional), place(場所, optional), gift(お手土産, optional)
  */
 function addContact(params) {
   if (!params.relationPageId) throw new Error('relationPageId が必要です');
@@ -335,6 +353,9 @@ function addContact(params) {
     '種別': { select: { name: params.type } },
     '内容': { rich_text: [{ text: { content: String(params.content || '') } }] },
     '備考': { rich_text: [{ text: { content: String(params.note || '') } }] },
+    '場所': { rich_text: [{ text: { content: String(params.place || '') } }] },
+    'お手土産': { rich_text: [{ text: { content: String(params.gift || '') } }] },
+    '対応者': { multi_select: (params.staff || []).map(function (name) { return { name: String(name) }; }) },
     '対象議員': { relation: [{ id: params.relationPageId }] }
   };
   if (params.date) {
@@ -363,6 +384,8 @@ function buildPropertyPayload(type, value) {
       return { rich_text: [{ text: { content: String(value || '') } }] };
     case 'select':
       return value ? { select: { name: String(value) } } : { select: null };
+    case 'multi_select':
+      return { multi_select: (value || []).map(function (name) { return { name: String(name) }; }) };
     case 'number':
       return { number: (value === '' || value == null) ? null : Number(value) };
     case 'date':
@@ -450,7 +473,8 @@ function createRelation(params) {
  * params: contactPageId, type(種別), date(日付), content(内容), note(備考), amount(金額_円), summary(概要)
  */
 var CONTACT_EDITABLE_TYPES = {
-  type: 'select', date: 'date', content: 'rich_text', note: 'rich_text', amount: 'number', summary: 'title'
+  type: 'select', date: 'date', content: 'rich_text', note: 'rich_text', amount: 'number', summary: 'title',
+  staff: 'multi_select', place: 'rich_text', gift: 'rich_text'
 };
 
 function updateContact(params) {
