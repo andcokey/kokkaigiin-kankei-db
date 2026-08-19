@@ -104,8 +104,13 @@
   .summary-line .ok .n { color: var(--good); }
   .summary-line .bad .n { color: var(--seal); }
 
-  .import-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .import-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
   .import-note { font-size: 12px; color: var(--ink-faint); }
+
+  .progress-wrap { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px; }
+  .progress-track { flex: 1; height: 8px; border-radius: 100px; background: var(--surface-3); overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 100px; transition: width .2s ease; }
+  .progress-text { font-size: 12px; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   .empty-state { padding: 24px 16px; text-align: center; color: var(--ink-faint); font-size: 12.5px; }
   .foot-note { margin-top: 4px; padding: 12px 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--ink-faint); }
@@ -155,6 +160,10 @@
       <button class="add-btn" id="importBtn" type="button">この内容でインポート実行</button>
       <span class="import-note" id="importNote"></span>
     </div>
+    <div class="progress-wrap" id="importProgressWrap" style="display:none;">
+      <div class="progress-track"><div class="progress-fill" id="importProgressFill"></div></div>
+      <span class="progress-text" id="importProgressText"></span>
+    </div>
   </div>
 
   <div class="card" id="resultCard" style="display:none;">
@@ -200,6 +209,10 @@
     <div class="import-actions">
       <button class="add-btn" id="domainImportBtn" type="button">この内容でインポート実行</button>
       <span class="import-note" id="domainImportNote"></span>
+    </div>
+    <div class="progress-wrap" id="domainImportProgressWrap" style="display:none;">
+      <div class="progress-track"><div class="progress-fill" id="domainImportProgressFill"></div></div>
+      <span class="progress-text" id="domainImportProgressText"></span>
     </div>
   </div>
 
@@ -435,16 +448,31 @@ async function runImport(validEntries) {
   var btn = document.getElementById('importBtn');
   btn.disabled = true;
   btn.textContent = 'インポート中…';
+  var wrap = document.getElementById('importProgressWrap');
+  var fill = document.getElementById('importProgressFill');
+  var text = document.getElementById('importProgressText');
+  wrap.style.display = 'flex';
+  var total = validEntries.length;
+  var results = [];
   try {
-    var payload = validEntries.map(function (e) { return e.row; });
-    var res = await GasClient.call('bulkImport', { rows: payload });
-    renderResult(res.results, validEntries);
+    for (var i = 0; i < total; i++) {
+      text.textContent = (i + 1) + ' / ' + total + ' 件目を処理中…';
+      fill.style.width = Math.round((i / total) * 100) + '%';
+      try {
+        var res = await GasClient.call('bulkImport', { rows: [validEntries[i].row] });
+        results.push(res.results[0]);
+      } catch (err) {
+        results.push({ row: i + 1, name: validEntries[i].row.name || validEntries[i].row.legislatorId || '', error: err.message });
+      }
+    }
+    fill.style.width = '100%';
+    text.textContent = total + ' / ' + total + ' 件完了';
+    renderResult(results, validEntries);
     await loadMasters();
-  } catch (err) {
-    document.getElementById('importNote').textContent = 'インポートに失敗しました: ' + err.message;
   } finally {
     btn.disabled = false;
     btn.textContent = 'この内容でインポート実行';
+    wrap.style.display = 'none';
   }
 }
 
@@ -617,16 +645,31 @@ async function runDomainImport(validEntries) {
   var btn = document.getElementById('domainImportBtn');
   btn.disabled = true;
   btn.textContent = 'インポート中…';
+  var wrap = document.getElementById('domainImportProgressWrap');
+  var fill = document.getElementById('domainImportProgressFill');
+  var text = document.getElementById('domainImportProgressText');
+  wrap.style.display = 'flex';
+  var total = validEntries.length;
+  var results = [];
   try {
-    var payload = validEntries.map(function (e) { return e.row; });
-    var res = await GasClient.call('bulkUpdateDomainExpiry', { rows: payload });
-    renderDomainResult(res.results, validEntries);
+    for (var i = 0; i < total; i++) {
+      text.textContent = (i + 1) + ' / ' + total + ' 件目を処理中…';
+      fill.style.width = Math.round((i / total) * 100) + '%';
+      try {
+        var res = await GasClient.call('bulkUpdateDomainExpiry', { rows: [validEntries[i].row] });
+        results.push(res.results[0]);
+      } catch (err) {
+        results.push({ row: i + 1, name: validEntries[i].row.name || validEntries[i].row.domain || '', error: err.message });
+      }
+    }
+    fill.style.width = '100%';
+    text.textContent = total + ' / ' + total + ' 件完了';
+    renderDomainResult(results, validEntries);
     await loadMasters();
-  } catch (err) {
-    document.getElementById('domainImportNote').textContent = 'インポートに失敗しました: ' + err.message;
   } finally {
     btn.disabled = false;
     btn.textContent = 'この内容でインポート実行';
+    wrap.style.display = 'none';
   }
 }
 
