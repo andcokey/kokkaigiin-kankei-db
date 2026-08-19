@@ -252,7 +252,7 @@ var ALL_FIELDS = {
   domain: 'ドメイン', domainService: 'ドメイン管理サービス', domainCompany: 'ドメイン管理会社',
   domainExpiry: 'ドメイン有効期限', photoUrl: '顔写真URL',
   serverService: 'サーバー管理サービス', serverCompany: 'サーバー管理会社',
-  sslVendor: 'SSLベンダー', siteSeal: 'サイトシール', currentPost: '現職役職',
+  sslVendor: 'SSLベンダー', sslExpiry: 'SSL有効期限', siteSeal: 'サイトシール', currentPost: '現職役職',
   relationId: '関係マスタ（重点対象）'
 };
 
@@ -578,7 +578,13 @@ function bulkImport(params) {
   return { results: results };
 }
 
-/* ---------------- ドメイン有効期限の一括更新（CSV） ---------------- */
+/* ---------------- ドメイン・サーバー・SSL情報の一括更新（CSV） ---------------- */
+
+var ALL_MASTER_EDITABLE_TYPES = {
+  domain: 'rich_text', domainService: 'rich_text', domainCompany: 'rich_text',
+  domainExpiry: 'date', serverService: 'rich_text', serverCompany: 'rich_text',
+  sslVendor: 'rich_text', sslExpiry: 'date', siteSeal: 'select'
+};
 
 /**
  * CSVの1行から議員マスタ（全体）の対象ページを解決する。
@@ -600,9 +606,12 @@ function resolveLegislatorForDomainRow(row, allRows) {
 }
 
 /**
- * CSVから議員マスタ（全体）のドメイン有効期限を一括更新する。
- * params: rows = [{ name(氏名, optional), domain(ドメイン, 一致確認・絞り込み用, optional), expiry(有効期限, YYYY-MM-DD) }, ...]
- * name/domainのいずれかで対象議員を一意に特定できる行のみ更新する。1行の失敗は他の行に影響しない。
+ * CSVから議員マスタ（全体）のドメイン・サーバー・SSL情報を一括更新する。
+ * params: rows = [{ name(氏名, optional), domain(ドメイン, 一致確認・絞り込み用, optional),
+ *                    expiry(ドメイン有効期限, YYYY-MM-DD), domainService, domainCompany,
+ *                    serverService, serverCompany, sslVendor, sslExpiry(SSL有効期限, YYYY-MM-DD), siteSeal }, ...]
+ * name/domainのいずれかで対象議員を一意に特定できる行のみ更新する。空欄の項目は「変更しない」扱い。
+ * 1行の失敗は他の行に影響しない。
  */
 function bulkUpdateDomainExpiry(params) {
   if (!params.rows || !params.rows.length) throw new Error('rowsが必要です');
@@ -614,11 +623,17 @@ function bulkUpdateDomainExpiry(params) {
     var rowNo = idx + 1;
     var displayName = row.name || row.domain || ('行' + rowNo);
     try {
-      if (!row.expiry) throw new Error('有効期限が必要です');
       var legislator = resolveLegislatorForDomainRow(row, allRows);
-      notionFetch('pages/' + legislator.id, 'patch', {
-        properties: { 'ドメイン有効期限': { date: { start: row.expiry } } }
+      var editRow = { domainExpiry: row.expiry };
+      ['domainService', 'domainCompany', 'serverService', 'serverCompany', 'sslVendor', 'sslExpiry', 'siteSeal'].forEach(function (key) {
+        editRow[key] = row[key];
       });
+      var nonEmptyRow = {};
+      Object.keys(ALL_MASTER_EDITABLE_TYPES).forEach(function (key) {
+        if (editRow[key] !== undefined && editRow[key] !== '') nonEmptyRow[key] = editRow[key];
+      });
+      var updateProps = buildUpdateProperties(ALL_FIELDS, ALL_MASTER_EDITABLE_TYPES, nonEmptyRow);
+      notionFetch('pages/' + legislator.id, 'patch', { properties: updateProps });
       results.push({ row: rowNo, name: legislator.name, domain: legislator.domain, error: null });
     } catch (err) {
       results.push({ row: rowNo, name: displayName, error: String(err.message || err) });

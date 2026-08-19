@@ -167,17 +167,18 @@
     <div class="foot-note">画面上の一覧（全体サマリ・個別ページ）には反映済みです。各ページを開き直すと最新の内容が表示されます。</div>
   </div>
 
-  <h1 style="margin-top:40px;">CSVでドメイン有効期限を一括更新</h1>
-  <p class="lead">議員マスタ（全体、現職国会議員712名）の「ドメイン有効期限」を、CSV1枚でまとめて登録・更新できます。上のセクション（関係マスタ・接触履歴の一括追加）とは別の独立した機能です。</p>
+  <h1 style="margin-top:40px;">CSVでドメイン・サーバー・SSL情報を一括更新</h1>
+  <p class="lead">議員マスタ（全体、現職国会議員712名）の「ドメイン」「ドメイン有効期限」「ドメイン管理サービス／会社」「サーバー管理サービス／会社」「SSLベンダー」「SSL有効期限」「サイトシール」を、CSV1枚でまとめて登録・更新できます。上のセクション（関係マスタ・接触履歴の一括追加）とは別の独立した機能です。</p>
 
   <div class="card">
     <h2><span class="step-num">1</span>テンプレートをダウンロード</h2>
     <p class="desc">記入例入り。1行目はヘッダーなので変更しないでください。</p>
     <button class="add-btn" id="domainDownloadBtn" type="button">テンプレートをダウンロード（CSV）</button>
     <div class="col-list">
-      <div><b>1行＝1議員のドメイン有効期限</b>です。</div>
+      <div><b>1行＝1議員のドメイン・サーバー・SSL情報</b>です。</div>
       <div style="margin-top:6px;"><b>議員の指定方法</b>：<b>ドメイン</b>を入れれば議員マスタ（全体）のドメイン列と完全一致で検索します（表記ゆれ・同姓同名を避けられるため推奨）。空欄の場合は<b>氏名</b>で完全一致検索します。どちらでも一意に決まらない場合はエラーになります。</div>
-      <div style="margin-top:6px;"><b>有効期限</b>は<b>YYYY-MM-DD</b>形式で入力してください（必須）。既存の値がある場合は上書きされます。</div>
+      <div style="margin-top:6px;"><b>ドメイン管理サービス・ドメイン管理会社・サーバー管理サービス・サーバー管理会社・SSLベンダー・サイトシール</b>は<b>空欄のセルは「変更しない」</b>扱いになります（既存の値は消えません）。</div>
+      <div style="margin-top:6px;"><b>ドメイン有効期限・SSL有効期限</b>は<b>YYYY-MM-DD</b>形式で入力してください（空欄なら変更しません）。<b>サイトシール</b>は「サイトシール有」「サイトシール無」のいずれかで入力してください。</div>
     </div>
   </div>
 
@@ -477,16 +478,24 @@ function renderResult(results, validEntries) {
   document.getElementById('resultCard').style.display = 'block';
 }
 
-/* ---------------- ドメイン有効期限の一括更新 ---------------- */
+/* ---------------- ドメイン・サーバー・SSL情報の一括更新 ---------------- */
 
 var DOMAIN_COLUMNS = [
   { key: 'name', header: '氏名' },
   { key: 'domain', header: 'ドメイン' },
-  { key: 'expiry', header: '有効期限' }
+  { key: 'expiry', header: 'ドメイン有効期限' },
+  { key: 'domainService', header: 'ドメイン管理サービス' },
+  { key: 'domainCompany', header: 'ドメイン管理会社' },
+  { key: 'serverService', header: 'サーバー管理サービス' },
+  { key: 'serverCompany', header: 'サーバー管理会社' },
+  { key: 'sslVendor', header: 'SSLベンダー' },
+  { key: 'sslExpiry', header: 'SSL有効期限' },
+  { key: 'siteSeal', header: 'サイトシール' }
 ];
+var SITE_SEAL_VALUES = ['サイトシール有', 'サイトシール無'];
 var DOMAIN_SAMPLE_ROWS = [
-  ['（記入例）山田太郎', 'yamada-taro.jp', '2027-03-31'],
-  ['', 'suzuki-hanako.com', '2026-12-15']
+  ['', 'hitomi-aoki.com', '2027-04-30', '他社', 'GMOインターネットグループ株式会社', 'Amazon Web Services（サービス特定不可）', 'Amazon Web Services, Inc.', "Let's Encrypt", '', 'サイトシール無'],
+  ['', 'aoyagi-h.com', '2027-04-08', 'ムームードメイン', 'GMOインターネットグループ株式会社', 'ロリポップ！レンタルサーバー', 'GMOペパボ株式会社', "Let's Encrypt", '', 'サイトシール無']
 ];
 
 document.getElementById('domainDownloadBtn').addEventListener('click', function () {
@@ -495,7 +504,7 @@ document.getElementById('domainDownloadBtn').addEventListener('click', function 
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = 'ドメイン有効期限テンプレート.csv';
+  a.href = url; a.download = 'ドメイン・サーバー・SSL情報テンプレート.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 });
@@ -541,10 +550,20 @@ function resolveLegislatorPreview(row) {
   return { status: 'existing', name: byName[0].name, domain: byName[0].domain };
 }
 
-function validateExpiryPreview(row) {
-  if (!row.expiry) return { error: '有効期限が必要です' };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(row.expiry)) {
-    return { error: '有効期限はYYYY-MM-DD形式で入力してください（入力値: "' + row.expiry + '"）' };
+var SERVICE_FIELD_KEYS = ['expiry', 'domainService', 'domainCompany', 'serverService', 'serverCompany', 'sslVendor', 'sslExpiry', 'siteSeal'];
+
+function validateServicePreview(row) {
+  if (row.expiry && !/^\d{4}-\d{2}-\d{2}$/.test(row.expiry)) {
+    return { error: 'ドメイン有効期限はYYYY-MM-DD形式で入力してください（入力値: "' + row.expiry + '"）' };
+  }
+  if (row.sslExpiry && !/^\d{4}-\d{2}-\d{2}$/.test(row.sslExpiry)) {
+    return { error: 'SSL有効期限はYYYY-MM-DD形式で入力してください（入力値: "' + row.sslExpiry + '"）' };
+  }
+  if (row.siteSeal && SITE_SEAL_VALUES.indexOf(row.siteSeal) === -1) {
+    return { error: 'サイトシールは「サイトシール有」「サイトシール無」のいずれかで入力してください（入力値: "' + row.siteSeal + '"）' };
+  }
+  if (!SERVICE_FIELD_KEYS.some(function (k) { return row[k]; })) {
+    return { error: '更新する項目がありません（全列が空欄です）' };
   }
   return {};
 }
@@ -553,8 +572,8 @@ function renderDomainPreview(rows) {
   STATE.domainParsedRows = rows;
   var evaluated = rows.map(function (row, idx) {
     var legislator = resolveLegislatorPreview(row);
-    var expiryCheck = legislator.status === 'error' ? {} : validateExpiryPreview(row);
-    var error = legislator.status === 'error' ? legislator.message : (expiryCheck.error || null);
+    var serviceCheck = legislator.status === 'error' ? {} : validateServicePreview(row);
+    var error = legislator.status === 'error' ? legislator.message : (serviceCheck.error || null);
     return { idx: idx, row: row, legislator: legislator, error: error };
   });
 
@@ -564,16 +583,18 @@ function renderDomainPreview(rows) {
   document.getElementById('domainErrorCount').textContent = errorCount;
 
   var html = '<table class="import-table"><thead><tr>' +
-    '<th>行</th><th>氏名</th><th>ドメイン</th><th>新しい有効期限</th><th>エラー</th>' +
+    '<th>行</th><th>氏名</th><th>ドメイン</th><th>更新する項目</th><th>エラー</th>' +
     '</tr></thead><tbody>' +
     evaluated.map(function (e) {
       var name = e.legislator.name || e.row.name || '（未指定）';
       var domain = e.legislator.domain || e.row.domain || '';
+      var updates = SERVICE_FIELD_KEYS.filter(function (k) { return e.row[k]; })
+        .map(function (k) { return DOMAIN_COLUMNS.filter(function (c) { return c.key === k; })[0].header + '=' + e.row[k]; });
       return '<tr class="' + (e.error ? 'row-error' : '') + '">' +
         '<td class="num">' + (e.idx + 2) + '</td>' +
         '<td>' + escHtml(name) + '</td>' +
         '<td class="muted">' + escHtml(domain) + '</td>' +
-        '<td>' + escHtml(e.row.expiry) + '</td>' +
+        '<td>' + escHtml(updates.join('／')) + '</td>' +
         '<td class="err-text">' + escHtml(e.error || '') + '</td>' +
         '</tr>';
     }).join('') +

@@ -820,20 +820,19 @@ function renderDossier(){
     ? '面談・贈答・セミナー献金（パーティー券購入）を1本のタイムラインで表示します'
     : 'この議員は関係マスタに未登録です';
 
+  function expiryFieldHtml(dateStr) {
+    if (!dateStr) return kv('有効期限', null);
+    var days = Math.round((new Date(dateStr) - new Date()) / 86400000);
+    var color = days < 0 ? 'var(--seal)' : (days <= 30 ? 'var(--gold)' : '');
+    var style = color ? ' style="color:' + color + ';font-weight:600;"' : '';
+    return '<div class="kv"><span class="k">有効期限</span><span class="v"' + style + '>' + dateStr +
+      (days < 0 ? '（期限切れ）' : (days <= 30 ? '（残り' + days + '日）' : '')) + '</span></div>';
+  }
+
   if (all) {
-    var expiryHtml = '';
-    if (all.domainExpiry) {
-      var expiryDays = Math.round((new Date(all.domainExpiry) - new Date()) / 86400000);
-      var expiryColor = expiryDays < 0 ? 'var(--seal)' : (expiryDays <= 30 ? 'var(--gold)' : '');
-      var expiryStyle = expiryColor ? ' style="color:' + expiryColor + ';font-weight:600;"' : '';
-      expiryHtml = '<div class="kv"><span class="k">有効期限</span><span class="v"' + expiryStyle + '>' + all.domainExpiry +
-        (expiryDays < 0 ? '（期限切れ）' : (expiryDays <= 30 ? '（残り' + expiryDays + '日）' : '')) + '</span></div>';
-    } else {
-      expiryHtml = kv('有効期限', null);
-    }
-    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService) + expiryHtml;
+    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService) + expiryFieldHtml(all.domainExpiry);
     document.getElementById('fgServer').innerHTML = '<div class="fg-title">サーバー</div>' + kv('会社', all.serverCompany) + kv('サービス', all.serverService);
-    document.getElementById('fgSsl').innerHTML = '<div class="fg-title">SSL</div>' + kv('ベンダー', all.sslVendor) +
+    document.getElementById('fgSsl').innerHTML = '<div class="fg-title">SSL</div>' + kv('ベンダー', all.sslVendor) + expiryFieldHtml(all.sslExpiry) +
       '<div class="kv"><span class="k">サイトシール</span><span class="v ' + (all.siteSeal==='サイトシール有'?'seal-yes':'seal-no') + '">' + (all.siteSeal||'—').replace('サイトシール','') + '</span></div>';
   } else {
     ['fgDomain','fgServer','fgSsl'].forEach(function(id, i){
