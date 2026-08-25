@@ -177,7 +177,7 @@
   </div>
 
   <h1 style="margin-top:40px;">CSVでドメイン・サーバー・SSL情報を一括更新</h1>
-  <p class="lead">議員マスタ（全体、現職国会議員712名）の「ドメイン」「ドメイン有効期限」「ドメイン管理サービス／会社」「サーバー管理サービス／会社」「SSLベンダー」「SSL有効期限」「サイトシール」を、CSV1枚でまとめて登録・更新できます。上のセクション（関係マスタ・接触履歴の一括追加）とは別の独立した機能です。</p>
+  <p class="lead">議員マスタ（全体、現職国会議員712名）の「ドメイン」「ドメイン／ホスティング／SSLの有効期限」「決済カード有効期限」「ドメイン管理サービス／会社」「サーバー管理サービス／会社」「SSLベンダー」「サイトシール」を、CSV1枚でまとめて登録・更新できます。上のセクション（関係マスタ・接触履歴の一括追加）とは別の独立した機能です。</p>
 
   <div class="card">
     <h2><span class="step-num">1</span>テンプレートをダウンロード</h2>
@@ -187,7 +187,7 @@
       <div><b>1行＝1議員のドメイン・サーバー・SSL情報</b>です。</div>
       <div style="margin-top:6px;"><b>議員の指定方法</b>：<b>ドメイン</b>を入れれば議員マスタ（全体）のドメイン列と完全一致で検索します（表記ゆれ・同姓同名を避けられるため推奨）。空欄の場合は<b>氏名</b>で完全一致検索します。どちらでも一意に決まらない場合はエラーになります。</div>
       <div style="margin-top:6px;"><b>ドメイン管理サービス・ドメイン管理会社・サーバー管理サービス・サーバー管理会社・SSLベンダー・サイトシール</b>は<b>空欄のセルは「変更しない」</b>扱いになります（既存の値は消えません）。</div>
-      <div style="margin-top:6px;"><b>ドメイン有効期限・SSL有効期限</b>は<b>YYYY-MM-DD</b>形式で入力してください（空欄なら変更しません）。<b>サイトシール</b>は「サイトシール有」「サイトシール無」のいずれかで入力してください。</div>
+      <div style="margin-top:6px;"><b>ドメイン有効期限・ホスティング有効期限・SSL有効期限、およびそれぞれの決済カード有効期限</b>は<b>YYYY-MM-DD</b>形式で入力してください（空欄なら変更しません）。<b>サイトシール</b>は「サイトシール有」「サイトシール無」のいずれかで入力してください。</div>
     </div>
   </div>
 
@@ -224,6 +224,26 @@
     </div>
     <div id="domainResultTableWrap"></div>
     <div class="foot-note">個別ページ（detail.html）の「ドメイン」欄に反映済みです。ページを開き直すと最新の内容が表示されます。</div>
+  </div>
+
+  <h1 style="margin-top:40px;">国会議員でない閣僚を追加</h1>
+  <p class="lead">議員マスタ（全体）は現職国会議員712名の名簿として作られているため、民間出身の起用大臣など国会議員でない閣僚は自動では含まれていません。ここから個別に追加できます（議院・選挙区は空欄で登録されます）。</p>
+
+  <div class="card">
+    <div class="col-list" style="margin-bottom:14px;">
+      <label style="display:block; margin-bottom:8px;">氏名<br>
+        <input type="text" id="nonDietName" style="width:100%; max-width:320px;">
+      </label>
+      <label style="display:block; margin-bottom:8px;">現職役職<br>
+        <input type="text" id="nonDietPost" placeholder="例: 経済再生担当大臣" style="width:100%; max-width:320px;">
+      </label>
+      <label style="display:block;">政党（任意）<br>
+        <input type="text" id="nonDietParty" style="width:100%; max-width:320px;">
+      </label>
+    </div>
+    <button class="add-btn" id="nonDietAddBtn" type="button">＋ 議員マスタに追加</button>
+    <span class="err-text" id="nonDietErr" style="margin-left:10px;"></span>
+    <div id="nonDietOk" style="margin-top:10px; display:none;" class="foot-note"></div>
   </div>
 </div>
 
@@ -512,18 +532,22 @@ var DOMAIN_COLUMNS = [
   { key: 'name', header: '氏名' },
   { key: 'domain', header: 'ドメイン' },
   { key: 'expiry', header: 'ドメイン有効期限' },
+  { key: 'domainCardExpiry', header: 'ドメイン決済カード有効期限' },
   { key: 'domainService', header: 'ドメイン管理サービス' },
   { key: 'domainCompany', header: 'ドメイン管理会社' },
   { key: 'serverService', header: 'サーバー管理サービス' },
   { key: 'serverCompany', header: 'サーバー管理会社' },
+  { key: 'hostingExpiry', header: 'ホスティング有効期限' },
+  { key: 'hostingCardExpiry', header: 'ホスティング決済カード有効期限' },
   { key: 'sslVendor', header: 'SSLベンダー' },
   { key: 'sslExpiry', header: 'SSL有効期限' },
+  { key: 'sslCardExpiry', header: 'SSL決済カード有効期限' },
   { key: 'siteSeal', header: 'サイトシール' }
 ];
 var SITE_SEAL_VALUES = ['サイトシール有', 'サイトシール無'];
 var DOMAIN_SAMPLE_ROWS = [
-  ['', 'hitomi-aoki.com', '2027-04-30', '他社', 'GMOインターネットグループ株式会社', 'Amazon Web Services（サービス特定不可）', 'Amazon Web Services, Inc.', "Let's Encrypt", '', 'サイトシール無'],
-  ['', 'aoyagi-h.com', '2027-04-08', 'ムームードメイン', 'GMOインターネットグループ株式会社', 'ロリポップ！レンタルサーバー', 'GMOペパボ株式会社', "Let's Encrypt", '', 'サイトシール無']
+  ['', 'hitomi-aoki.com', '2027-04-30', '', '他社', 'GMOインターネットグループ株式会社', 'Amazon Web Services（サービス特定不可）', 'Amazon Web Services, Inc.', '', '', "Let's Encrypt", '', '', 'サイトシール無'],
+  ['', 'aoyagi-h.com', '2027-04-08', '', 'ムームードメイン', 'GMOインターネットグループ株式会社', 'ロリポップ！レンタルサーバー', 'GMOペパボ株式会社', '', '', "Let's Encrypt", '', '', 'サイトシール無']
 ];
 
 document.getElementById('domainDownloadBtn').addEventListener('click', function () {
@@ -578,14 +602,24 @@ function resolveLegislatorPreview(row) {
   return { status: 'existing', name: byName[0].name, domain: byName[0].domain };
 }
 
-var SERVICE_FIELD_KEYS = ['expiry', 'domainService', 'domainCompany', 'serverService', 'serverCompany', 'sslVendor', 'sslExpiry', 'siteSeal'];
+var SERVICE_FIELD_KEYS = ['expiry', 'domainCardExpiry', 'domainService', 'domainCompany',
+  'serverService', 'serverCompany', 'hostingExpiry', 'hostingCardExpiry',
+  'sslVendor', 'sslExpiry', 'sslCardExpiry', 'siteSeal'];
+var SERVICE_DATE_FIELDS = [
+  { key: 'expiry', label: 'ドメイン有効期限' },
+  { key: 'domainCardExpiry', label: 'ドメイン決済カード有効期限' },
+  { key: 'hostingExpiry', label: 'ホスティング有効期限' },
+  { key: 'hostingCardExpiry', label: 'ホスティング決済カード有効期限' },
+  { key: 'sslExpiry', label: 'SSL有効期限' },
+  { key: 'sslCardExpiry', label: 'SSL決済カード有効期限' }
+];
 
 function validateServicePreview(row) {
-  if (row.expiry && !/^\d{4}-\d{2}-\d{2}$/.test(row.expiry)) {
-    return { error: 'ドメイン有効期限はYYYY-MM-DD形式で入力してください（入力値: "' + row.expiry + '"）' };
-  }
-  if (row.sslExpiry && !/^\d{4}-\d{2}-\d{2}$/.test(row.sslExpiry)) {
-    return { error: 'SSL有効期限はYYYY-MM-DD形式で入力してください（入力値: "' + row.sslExpiry + '"）' };
+  for (var i = 0; i < SERVICE_DATE_FIELDS.length; i++) {
+    var f = SERVICE_DATE_FIELDS[i];
+    if (row[f.key] && !/^\d{4}-\d{2}-\d{2}$/.test(row[f.key])) {
+      return { error: f.label + 'はYYYY-MM-DD形式で入力してください（入力値: "' + row[f.key] + '"）' };
+    }
   }
   if (row.siteSeal && SITE_SEAL_VALUES.indexOf(row.siteSeal) === -1) {
     return { error: 'サイトシールは「サイトシール有」「サイトシール無」のいずれかで入力してください（入力値: "' + row.siteSeal + '"）' };
@@ -690,11 +724,37 @@ function renderDomainResult(results, validEntries) {
           '<td><span class="status-pill status-error">失敗</span></td><td class="err-text">' + escHtml(r.error) + '</td></tr>';
       }
       return '<tr><td class="num">' + rowNo + '</td><td>' + escHtml(r.name) + '</td>' +
-        '<td><span class="status-pill status-ok">成功</span></td><td>ドメイン有効期限を更新（' + escHtml(r.domain || '') + '）</td></tr>';
+        '<td><span class="status-pill status-ok">成功</span></td><td>サービス情報を更新（' + escHtml(r.domain || '') + '）</td></tr>';
     }).join('') +
     '</tbody></table>';
 
   document.getElementById('domainResultTableWrap').innerHTML = html;
   document.getElementById('domainResultCard').style.display = 'block';
 }
+
+document.getElementById('nonDietAddBtn').addEventListener('click', async function () {
+  var btn = document.getElementById('nonDietAddBtn');
+  var errEl = document.getElementById('nonDietErr');
+  var okEl = document.getElementById('nonDietOk');
+  var name = document.getElementById('nonDietName').value.trim();
+  var currentPost = document.getElementById('nonDietPost').value.trim();
+  var party = document.getElementById('nonDietParty').value.trim();
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+  if (!name) { errEl.textContent = '氏名は必須です'; return; }
+  btn.disabled = true;
+  try {
+    await GasClient.call('createNonDietMember', { name: name, currentPost: currentPost, party: party });
+    okEl.textContent = '「' + name + '」を議員マスタに追加しました。';
+    okEl.style.display = 'block';
+    document.getElementById('nonDietName').value = '';
+    document.getElementById('nonDietPost').value = '';
+    document.getElementById('nonDietParty').value = '';
+    await loadMasters(true);
+  } catch (err) {
+    errEl.textContent = '追加に失敗しました: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 </script>

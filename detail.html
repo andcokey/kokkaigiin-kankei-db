@@ -150,6 +150,9 @@
   .field-group { padding: 18px 26px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .field-group.nb-r { border-right: none; }
   .field-group.span2 { grid-column: span 2; }
+  .field-group.span3 { grid-column: span 3; }
+  .current-only-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+  .current-only-toggle input { width: auto; }
   .field-group .fg-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
   .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 13px; }
   .kv .k { color: var(--ink-faint); flex-shrink: 0; }
@@ -223,6 +226,7 @@
   .type-chip.面談 { background: var(--accent-soft); color: var(--accent-strong); }
   .type-chip.贈答 { background: var(--gold-soft); color: var(--gold); }
   .type-chip.セミナー献金（パーティー券購入） { background: var(--gold-soft); color: var(--gold); }
+  .type-chip.その他 { background: var(--good-soft); color: var(--good); }
   .who-did { font-size: 12.5px; color: var(--ink-faint); }
   .entry .memo { font-size: 13.5px; color: var(--ink); }
 
@@ -270,6 +274,8 @@
   }
   .internal-edit textarea { resize: vertical; min-height: 44px; }
   .internal-edit-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px; }
+  .internal-edit label.checkbox-field { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); }
+  .internal-edit label.checkbox-field input { width: auto; }
 
   .register-banner {
     margin: 18px 26px 0; padding: 14px 16px; border-radius: 8px; background: var(--accent-soft); border: 1px solid var(--accent);
@@ -336,6 +342,7 @@
     <h2 style="margin-bottom:6px; font-size:18px; font-weight:500;">議員を選択してください</h2>
     <div class="sort-hint" style="margin-bottom:12px;">現職国会議員712名全員のページがあります（関係マスタ登録者は接触履歴等も表示されます）</div>
     <input type="text" class="search-input" id="pickSearch" placeholder="氏名・政党・現職役職で検索（例: 外務大臣、自民）" />
+    <label class="current-only-toggle"><input type="checkbox" id="pickCurrentOnly" checked> 現職のみ表示</label>
     <div class="nav-list" id="pickList" style="max-height:60vh; margin-top:10px;"></div>
   </div>
   <div id="appRoot" class="layout" style="display:none;">
@@ -348,6 +355,7 @@
         <option value="kana">五十音順</option>
       </select>
       <input type="text" class="search-input" id="sidebarSearch" placeholder="氏名・政党・現職役職で検索" />
+      <label class="current-only-toggle"><input type="checkbox" id="sidebarCurrentOnly" checked> 現職のみ表示</label>
       <div class="sort-hint" id="sortHint"></div>
       <div class="nav-list" id="navList"></div>
       <div class="note">接触履歴等が表示されるのは「関係マスタ」に登録された議員のみです。それ以外はドメイン/サーバー/SSL情報のみ表示されます。</div>
@@ -384,6 +392,7 @@
           <div class="field-group span2 nb-r" id="fgLastContact"></div>
           <div class="field-group" id="fgSendTo"></div>
           <div class="field-group span2 nb-r" id="fgNotes"></div>
+          <div class="field-group span3 nb-r" id="fgAdvisor"></div>
           <div class="field-group" id="fgDomain"></div>
           <div class="field-group" id="fgServer"></div>
           <div class="field-group nb-r" id="fgSsl"></div>
@@ -405,6 +414,7 @@
               <span class="chip" data-type="面談">面談</span>
               <span class="chip" data-type="贈答">贈答</span>
               <span class="chip" data-type="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</span>
+              <span class="chip" data-type="その他">その他</span>
             </div>
             <div class="chip-row staff-chip-wrap" id="staffChips"></div>
           </div>
@@ -419,6 +429,7 @@
                 <option value="面談">面談</option>
                 <option value="贈答">贈答</option>
                 <option value="セミナー献金（パーティー券購入）">セミナー献金（パーティー券購入）</option>
+                <option value="その他">その他</option>
               </select>
             </label>
             <label>日付
@@ -515,6 +526,11 @@ var RELATION_FIELD_GROUPS = {
   ] },
   notes: { title: '備考', fields: [
     { key: 'note1', label: '備考1', multiline: true }, { key: 'note2Url', label: '備考2・URL等', multiline: true }
+  ] },
+  advisor: { title: '顧問', fields: [
+    { key: 'isAdvisor', label: '顧問区分', type: 'checkbox', trueLabel: '顧問である', falseLabel: '顧問ではない' },
+    { key: 'advisorSince', label: '顧問就任日', type: 'date' },
+    { key: 'advisorOfficer', label: '担当役員' }
   ] }
 };
 
@@ -526,23 +542,37 @@ function editActionsHtml(){
 
 function fieldInputHtml(f, rel){
   var raw = rel[f.key] || '';
+  if (f.type === 'checkbox') {
+    return '<label class="checkbox-field"><input type="checkbox" data-field="' + f.key + '"' + (rel[f.key] ? ' checked' : '') + '> ' + f.label + '</label>';
+  }
+  if (f.type === 'date') {
+    return '<label>' + f.label + '<input type="date" data-field="' + f.key + '" value="' + escAttr(raw) + '"></label>';
+  }
   return '<label>' + f.label + (f.multiline
     ? '<textarea rows="3" data-field="' + f.key + '">' + escAttr(raw) + '</textarea>'
     : '<input type="text" data-field="' + f.key + '" value="' + escAttr(raw) + '"></label>') +
     (f.multiline ? '</label>' : '');
 }
 
-function wireGroupEditActions(fieldKeys, box, rerender, onSaved){
+function fieldDisplayValue(f, rel){
+  if (f.type === 'checkbox') return rel[f.key] ? (f.trueLabel || 'はい') : (f.falseLabel || 'いいえ');
+  return rel[f.key];
+}
+
+function wireGroupEditActions(fields, box, rerender, onSaved){
   box.querySelector('[data-act="cancel"]').addEventListener('click', function(){ STATE.editingGroup = null; rerender(); });
   box.querySelector('[data-act="save"]').addEventListener('click', async function(){
     var btn = box.querySelector('[data-act="save"]');
     var errEl = box.querySelector('.err');
     btn.disabled = true;
     var payload = { relationPageId: STATE.activeRelation.id };
-    fieldKeys.forEach(function(k){ payload[k] = box.querySelector('[data-field="' + k + '"]').value.trim(); });
+    fields.forEach(function(f){
+      var el = box.querySelector('[data-field="' + f.key + '"]');
+      payload[f.key] = (f.type === 'checkbox') ? el.checked : el.value.trim();
+    });
     try {
       await GasClient.call('updateRelation', payload);
-      fieldKeys.forEach(function(k){ STATE.activeRelation[k] = payload[k]; });
+      fields.forEach(function(f){ STATE.activeRelation[f.key] = payload[f.key]; });
       if (onSaved) onSaved(payload);
       STATE.editingGroup = null;
       rerender();
@@ -568,10 +598,10 @@ function renderRelationGroup(groupKey, boxId, naHtml){
       group.fields.map(function(f){ return fieldInputHtml(f, rel); }).join('') +
       editActionsHtml() +
       '</div>';
-    wireGroupEditActions(group.fields.map(function(f){ return f.key; }), box, function(){ renderRelationGroup(groupKey, boxId); });
+    wireGroupEditActions(group.fields, box, function(){ renderRelationGroup(groupKey, boxId); });
   } else {
     box.innerHTML = '<div class="fg-title-row"><div class="fg-title">' + group.title + '</div><button class="edit-icon" data-editgroup type="button">✎ 編集</button></div>' +
-      group.fields.map(function(f){ return kv(f.label, rel[f.key], f.multiline ? 'memo-row' : ''); }).join('');
+      group.fields.map(function(f){ return kv(f.label, fieldDisplayValue(f, rel), f.multiline ? 'memo-row' : ''); }).join('');
     box.querySelector('[data-editgroup]').addEventListener('click', function(){ STATE.editingGroup = groupKey; renderRelationGroup(groupKey, boxId); });
   }
 }
@@ -596,7 +626,7 @@ function renderBasicGroup(){
       basicFields.map(function(f){ return fieldInputHtml(f, rel); }).join('') +
       editActionsHtml() +
       '</div>' + kanaLine;
-    wireGroupEditActions(basicFields.map(function(f){ return f.key; }), box, renderBasicGroup, function(vals){
+    wireGroupEditActions(basicFields, box, renderBasicGroup, function(vals){
       STATE.person.house = vals.house; STATE.person.party = vals.party; STATE.person.district = vals.district;
     });
   } else {
@@ -661,10 +691,10 @@ function buildUnifiedList(){
   var list = STATE.allRows.map(function(r){
     var rel = relByAllId[r.id];
     var post = r.currentPost || (rel ? rel.currentPost : '') || '';
-    return { linkId: r.id, name: r.name, party: r.party, house: r.house, district: r.district, kana: r.kana || '', post: post };
+    return { linkId: r.id, name: r.name, party: r.party, house: r.house, district: r.district, kana: r.kana || '', post: post, isCurrent: r.isCurrent !== false };
   });
   STATE.relations.forEach(function(r){
-    if (!r.allMasterId) list.push({ linkId: r.legislatorId, name: r.name, party: r.party, house: r.house, district: r.district, kana: '', post: r.currentPost || '' });
+    if (!r.allMasterId) list.push({ linkId: r.legislatorId, name: r.name, party: r.party, house: r.house, district: r.district, kana: '', post: r.currentPost || '', isCurrent: false });
   });
   return list;
 }
@@ -753,6 +783,7 @@ function renderSidebar(mode){
   var person = STATE.person;
   var list = STATE.unified.slice();
   if (mode === 'party') list = list.filter(function(r){ return normParty(r.party) === normParty(person.party); });
+  if (document.getElementById('sidebarCurrentOnly').checked) list = list.filter(function(r){ return r.isCurrent; });
   var q = (document.getElementById('sidebarSearch').value || '').trim();
   if (q) list = list.filter(function(r){ return matchesQuery(r, q); });
   list.sort(function(a,b){ return (a.kana || a.name).localeCompare(b.kana || b.name, 'ja'); });
@@ -773,6 +804,7 @@ function renderSidebar(mode){
 }
 document.getElementById('sidebarSort').addEventListener('change', function(e){ renderSidebar(e.target.value); });
 document.getElementById('sidebarSearch').addEventListener('input', function(){ renderSidebar(STATE.sidebarMode); });
+document.getElementById('sidebarCurrentOnly').addEventListener('change', function(){ renderSidebar(STATE.sidebarMode); });
 
 function openSidebarDrawer(){
   document.getElementById('sidebarPanel').classList.add('open');
@@ -840,6 +872,7 @@ function renderDossier(){
   renderRelationGroup('internal', 'fgInternal');
   renderRelationGroup('sendTo', 'fgSendTo');
   renderRelationGroup('notes', 'fgNotes');
+  renderRelationGroup('advisor', 'fgAdvisor');
   renderRegisterBanner();
 
   document.getElementById('histRelationBlock').style.display = rel ? '' : 'none';
@@ -848,19 +881,22 @@ function renderDossier(){
     ? '面談・贈答・セミナー献金（パーティー券購入）を1本のタイムラインで表示します'
     : 'この議員は関係マスタに未登録です';
 
-  function expiryFieldHtml(dateStr) {
-    if (!dateStr) return kv('有効期限', null);
+  function expiryFieldHtml(label, dateStr) {
+    if (!dateStr) return kv(label, null);
     var days = Math.round((new Date(dateStr) - new Date()) / 86400000);
     var color = days < 0 ? 'var(--seal)' : (days <= 30 ? 'var(--gold)' : '');
     var style = color ? ' style="color:' + color + ';font-weight:600;"' : '';
-    return '<div class="kv"><span class="k">有効期限</span><span class="v"' + style + '>' + dateStr +
+    return '<div class="kv"><span class="k">' + label + '</span><span class="v"' + style + '>' + dateStr +
       (days < 0 ? '（期限切れ）' : (days <= 30 ? '（残り' + days + '日）' : '')) + '</span></div>';
   }
 
   if (all) {
-    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('会社', all.domainCompany) + kv('サービス', all.domainService) + expiryFieldHtml(all.domainExpiry);
-    document.getElementById('fgServer').innerHTML = '<div class="fg-title">サーバー</div>' + kv('会社', all.serverCompany) + kv('サービス', all.serverService);
-    document.getElementById('fgSsl').innerHTML = '<div class="fg-title">SSL</div>' + kv('ベンダー', all.sslVendor) + expiryFieldHtml(all.sslExpiry) +
+    document.getElementById('fgDomain').innerHTML = '<div class="fg-title">ドメイン</div>' + kv('ドメイン名', all.domain) + kv('会社', all.domainCompany) + kv('サービス', all.domainService) +
+      expiryFieldHtml('有効期限', all.domainExpiry) + expiryFieldHtml('決済カード有効期限', all.domainCardExpiry);
+    document.getElementById('fgServer').innerHTML = '<div class="fg-title">サーバー</div>' + kv('会社', all.serverCompany) + kv('サービス', all.serverService) +
+      expiryFieldHtml('有効期限', all.hostingExpiry) + expiryFieldHtml('決済カード有効期限', all.hostingCardExpiry);
+    document.getElementById('fgSsl').innerHTML = '<div class="fg-title">SSL</div>' + kv('ベンダー', all.sslVendor) + expiryFieldHtml('有効期限', all.sslExpiry) +
+      expiryFieldHtml('決済カード有効期限', all.sslCardExpiry) +
       '<div class="kv"><span class="k">サイトシール</span><span class="v ' + (all.siteSeal==='サイトシール有'?'seal-yes':'seal-no') + '">' + (all.siteSeal||'—').replace('サイトシール','') + '</span></div>';
   } else {
     ['fgDomain','fgServer','fgSsl'].forEach(function(id, i){
@@ -1190,8 +1226,10 @@ document.getElementById('crumbSummaryLink').addEventListener('click', goToSummar
 var pickerList = [];
 
 function renderPickerList(){
+  var list = pickerList;
+  if (document.getElementById('pickCurrentOnly').checked) list = list.filter(function(r){ return r.isCurrent; });
   var q = (document.getElementById('pickSearch').value || '').trim();
-  var list = q ? pickerList.filter(function(r){ return matchesQuery(r, q); }) : pickerList;
+  if (q) list = list.filter(function(r){ return matchesQuery(r, q); });
   document.getElementById('pickList').innerHTML = list.map(function(r){
     var sub = (r.party||'') + '・' + (r.house||'') + (r.post ? '・' + r.post : '');
     return '<a class="nav-item" href="detail.html?id=' + encodeURIComponent(r.linkId) + '">' +
@@ -1217,6 +1255,7 @@ async function renderPicker(force){
     renderPickerList();
     if (!pickerSearchBound) {
       document.getElementById('pickSearch').addEventListener('input', renderPickerList);
+      document.getElementById('pickCurrentOnly').addEventListener('change', renderPickerList);
       pickerSearchBound = true;
     }
   } catch (err) {

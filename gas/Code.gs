@@ -76,6 +76,9 @@ function handle(e) {
       case 'bulkUpdateDomainExpiry':
         result = bulkUpdateDomainExpiry(params);
         break;
+      case 'createNonDietMember':
+        result = createNonDietMember(params);
+        break;
       case 'getNews':
         result = getNews(params);
         break;
@@ -174,6 +177,8 @@ function extractProp(prop) {
       return prop.date ? prop.date.start : null;
     case 'url':
       return prop.url || null;
+    case 'checkbox':
+      return !!prop.checkbox;
     case 'relation':
       return (prop.relation || []).map(function (r) { return r.id; });
     default:
@@ -255,9 +260,12 @@ function getCachedList(action, fetchFn, force) {
 var ALL_FIELDS = {
   name: '氏名', kana: '読み', house: '議院', party: '政党', district: '選挙区',
   domain: 'ドメイン', domainService: 'ドメイン管理サービス', domainCompany: 'ドメイン管理会社',
-  domainExpiry: 'ドメイン有効期限', photoUrl: '顔写真URL',
+  domainExpiry: 'ドメイン有効期限', domainCardExpiry: 'ドメイン決済カード有効期限', photoUrl: '顔写真URL',
   serverService: 'サーバー管理サービス', serverCompany: 'サーバー管理会社',
-  sslVendor: 'SSLベンダー', sslExpiry: 'SSL有効期限', siteSeal: 'サイトシール', currentPost: '現職役職',
+  hostingExpiry: 'ホスティング有効期限', hostingCardExpiry: 'ホスティング決済カード有効期限',
+  sslVendor: 'SSLベンダー', sslExpiry: 'SSL有効期限', sslCardExpiry: 'SSL決済カード有効期限',
+  siteSeal: 'サイトシール', currentPost: '現職役職',
+  isCurrent: '現職', isDietMember: '国会議員である',
   relationId: '関係マスタ（重点対象）'
 };
 
@@ -278,6 +286,7 @@ var RELATION_FIELDS = {
   giftInRepName: '代表名で贈るか', internalContact: '社内担当コンタクト',
   note1: '備考1', note2Url: '備考2_URL等',
   zip: '送付先郵便番号', address: '送付先住所', phone: '送付先電話番号',
+  isAdvisor: '顧問区分', advisorSince: '顧問就任日', advisorOfficer: '顧問担当役員',
   allMasterId: '議員マスタ（全体）', contactIds: '接触履歴', qualityNoteIds: 'データ品質メモ'
 };
 
@@ -390,6 +399,8 @@ function buildPropertyPayload(type, value) {
       return { number: (value === '' || value == null) ? null : Number(value) };
     case 'date':
       return value ? { date: { start: value } } : { date: null };
+    case 'checkbox':
+      return { checkbox: !!value };
     default:
       throw new Error('未対応のプロパティ型: ' + type);
   }
@@ -409,14 +420,16 @@ function buildUpdateProperties(fieldMap, editableTypes, params, required) {
 /**
  * 関係マスタの各項目を編集
  * params: relationPageId, house/party/district/factionNotes/currentPost/electionResult/
- *         internalContact/giftInRepName/zip/address/phone/note1/note2Url のうち更新したいもの
+ *         internalContact/giftInRepName/zip/address/phone/note1/note2Url/
+ *         isAdvisor/advisorSince/advisorOfficer のうち更新したいもの
  */
 var RELATION_EDITABLE_TYPES = {
   house: 'rich_text', party: 'rich_text', district: 'rich_text', factionNotes: 'rich_text',
   currentPost: 'rich_text', electionResult: 'rich_text',
   internalContact: 'rich_text', giftInRepName: 'rich_text',
   zip: 'rich_text', address: 'rich_text', phone: 'rich_text',
-  note1: 'rich_text', note2Url: 'rich_text'
+  note1: 'rich_text', note2Url: 'rich_text',
+  isAdvisor: 'checkbox', advisorSince: 'date', advisorOfficer: 'rich_text'
 };
 
 function updateRelation(params) {
@@ -466,6 +479,27 @@ function createRelation(params) {
   cacheInvalidateList('listRelations');
   cacheInvalidateList('listAll'); // 議員マスタ（全体）側の逆リレーション（relationId）も変わるため
   return { id: page.id, legislatorId: legislatorId };
+}
+
+/**
+ * 議員マスタ（全体）に、国会議員でない閣僚等を新規登録する（議院・選挙区は空欄のまま）。
+ * params: name(氏名), currentPost(現職役職), party(政党, optional)
+ */
+function createNonDietMember(params) {
+  if (!params.name) throw new Error('name(氏名) が必要です');
+
+  var properties = {
+    '氏名': { title: [{ text: { content: String(params.name) } }] },
+    '現職役職': { rich_text: [{ text: { content: String(params.currentPost || '') } }] },
+    '政党': { rich_text: [{ text: { content: String(params.party || '') } }] },
+    '国会議員である': { checkbox: false },
+    '現職': { checkbox: true }
+  };
+
+  var body = { parent: { data_source_id: DATA_SOURCES.legislatorsAll }, properties: properties };
+  var page = notionFetch('pages', 'post', body);
+  cacheInvalidateList('listAll');
+  return { id: page.id };
 }
 
 /**
@@ -606,8 +640,10 @@ function bulkImport(params) {
 
 var ALL_MASTER_EDITABLE_TYPES = {
   domain: 'rich_text', domainService: 'rich_text', domainCompany: 'rich_text',
-  domainExpiry: 'date', serverService: 'rich_text', serverCompany: 'rich_text',
-  sslVendor: 'rich_text', sslExpiry: 'date', siteSeal: 'select'
+  domainExpiry: 'date', domainCardExpiry: 'date',
+  serverService: 'rich_text', serverCompany: 'rich_text',
+  hostingExpiry: 'date', hostingCardExpiry: 'date',
+  sslVendor: 'rich_text', sslExpiry: 'date', sslCardExpiry: 'date', siteSeal: 'select'
 };
 
 /**
@@ -630,10 +666,11 @@ function resolveLegislatorForDomainRow(row, allRows) {
 }
 
 /**
- * CSVから議員マスタ（全体）のドメイン・サーバー・SSL情報を一括更新する。
+ * CSVから議員マスタ（全体）のドメイン・サーバー・SSL情報（有効期限・決済カード有効期限含む）を一括更新する。
  * params: rows = [{ name(氏名, optional), domain(ドメイン, 一致確認・絞り込み用, optional),
- *                    expiry(ドメイン有効期限, YYYY-MM-DD), domainService, domainCompany,
- *                    serverService, serverCompany, sslVendor, sslExpiry(SSL有効期限, YYYY-MM-DD), siteSeal }, ...]
+ *                    expiry(ドメイン有効期限, YYYY-MM-DD), domainService, domainCompany, domainCardExpiry,
+ *                    serverService, serverCompany, hostingExpiry, hostingCardExpiry,
+ *                    sslVendor, sslExpiry(SSL有効期限, YYYY-MM-DD), sslCardExpiry, siteSeal }, ...]
  * name/domainのいずれかで対象議員を一意に特定できる行のみ更新する。空欄の項目は「変更しない」扱い。
  * 1行の失敗は他の行に影響しない。
  */
@@ -649,7 +686,9 @@ function bulkUpdateDomainExpiry(params) {
     try {
       var legislator = resolveLegislatorForDomainRow(row, allRows);
       var editRow = { domainExpiry: row.expiry };
-      ['domainService', 'domainCompany', 'serverService', 'serverCompany', 'sslVendor', 'sslExpiry', 'siteSeal'].forEach(function (key) {
+      ['domainService', 'domainCompany', 'domainCardExpiry',
+       'serverService', 'serverCompany', 'hostingExpiry', 'hostingCardExpiry',
+       'sslVendor', 'sslExpiry', 'sslCardExpiry', 'siteSeal'].forEach(function (key) {
         editRow[key] = row[key];
       });
       var nonEmptyRow = {};
@@ -702,4 +741,26 @@ function getNews(params) {
     }
     return { title: title, link: getChildText(item, 'link'), pubDate: getChildText(item, 'pubDate'), source: source };
   });
+}
+
+/* ---------------- 一回限りの移行スクリプト ---------------- */
+
+/**
+ * 「現職」「国会議員である」プロパティを議員マスタ（全体）に追加した直後に、
+ * スクリプトエディタから1回だけ手動実行する（Webアクションとしては公開しない）。
+ * 既存712名は全員「現職の国会議員」として作られたスナップショットのため、両方trueに揃える。
+ * 実行後にこの関数を消す必要はない（再実行しても同じ結果になるだけで害はない）。
+ */
+function migrateSetDefaultFlagsForAllLegislators() {
+  var pages = notionQueryAll(DATA_SOURCES.legislatorsAll);
+  var updated = 0;
+  pages.forEach(function (p) {
+    notionFetch('pages/' + p.id, 'patch', {
+      properties: { '現職': { checkbox: true }, '国会議員である': { checkbox: true } }
+    });
+    updated++;
+  });
+  cacheInvalidateList('listAll');
+  Logger.log('updated ' + updated + ' pages');
+  return updated;
 }
