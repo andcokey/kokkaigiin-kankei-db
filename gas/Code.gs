@@ -749,18 +749,44 @@ function getNews(params) {
  * 「現職」「国会議員である」プロパティを議員マスタ（全体）に追加した直後に、
  * スクリプトエディタから1回だけ手動実行する（Webアクションとしては公開しない）。
  * 既存712名は全員「現職の国会議員」として作られたスナップショットのため、両方trueに揃える。
- * 実行後にこの関数を消す必要はない（再実行しても同じ結果になるだけで害はない）。
+ *
+ * 712件を1回の実行で処理すると6分の実行時間上限に引っかかるため、100件ずつのバッチに分割し、
+ * 続きがあれば時間主導トリガーで数秒後に自分自身を再実行する（実行を1回押すだけで、
+ * 完了まで自動的にバッチを繋いでいく）。途中で失敗しても未完了分から再実行すれば良い
+ * （checkboxをtrueにするだけの操作なので、同じ行を再実行しても害はない）。
+ * 完了後にこの関数を消す必要はない。
  */
+var MIGRATE_FLAGS_BATCH_SIZE = 100;
+var MIGRATE_FLAGS_OFFSET_KEY = 'migrateFlags_offset';
+
 function migrateSetDefaultFlagsForAllLegislators() {
+  deleteTriggersFor_('migrateSetDefaultFlagsForAllLegislators');
+
+  var props = PropertiesService.getScriptProperties();
+  var offset = Number(props.getProperty(MIGRATE_FLAGS_OFFSET_KEY) || '0');
   var pages = notionQueryAll(DATA_SOURCES.legislatorsAll);
-  var updated = 0;
-  pages.forEach(function (p) {
-    notionFetch('pages/' + p.id, 'patch', {
+  var end = Math.min(offset + MIGRATE_FLAGS_BATCH_SIZE, pages.length);
+
+  for (var i = offset; i < end; i++) {
+    notionFetch('pages/' + pages[i].id, 'patch', {
       properties: { '現職': { checkbox: true }, '国会議員である': { checkbox: true } }
     });
-    updated++;
+  }
+  Logger.log('processed ' + offset + '〜' + end + ' / ' + pages.length);
+
+  if (end < pages.length) {
+    props.setProperty(MIGRATE_FLAGS_OFFSET_KEY, String(end));
+    ScriptApp.newTrigger('migrateSetDefaultFlagsForAllLegislators').timeBased().after(5000).create();
+  } else {
+    props.deleteProperty(MIGRATE_FLAGS_OFFSET_KEY);
+    cacheInvalidateList('listAll');
+    Logger.log('完了: ' + pages.length + '件を更新しました');
+  }
+  return { processed: end, total: pages.length };
+}
+
+function deleteTriggersFor_(functionName) {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === functionName) ScriptApp.deleteTrigger(t);
   });
-  cacheInvalidateList('listAll');
-  Logger.log('updated ' + updated + ' pages');
-  return updated;
 }
