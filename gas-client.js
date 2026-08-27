@@ -1,6 +1,9 @@
 /* GAS接続クライアント（共通） */
 (function (global) {
   var CFG_KEY = 'gmoKokkaiDb.gasConfig';
+  // 実際のGAS URL・SHARED_TOKENはCloudflare Worker側のSecretsに隠蔽されている。
+  // フロントはこの固定URLだけを知ればよい（Workerが合言葉を検証してGASに中継する）。
+  var WORKER_URL = 'https://kokkaigiin-kankei-db-proxy.kokkaigiin-worker.workers.dev';
 
   function getConfig() {
     try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; }
@@ -12,12 +15,10 @@
 
   function ensureConfigured() {
     var cfg = getConfig();
-    if (cfg.url && cfg.token) return cfg;
-    var url = window.prompt('GASのウェブアプリURLを入力してください（一度入力すればこの端末に保存されます）', cfg.url || '');
-    if (!url) return null;
-    var token = window.prompt('合言葉（SHARED_TOKEN）を入力してください', cfg.token || '');
+    if (cfg.token) return cfg;
+    var token = window.prompt('合言葉を入力してください（一度入力すればこの端末に保存されます）', cfg.token || '');
     if (!token) return null;
-    cfg = { url: url.trim(), token: token.trim() };
+    cfg = { token: token.trim() };
     setConfig(cfg);
     return cfg;
   }
@@ -28,9 +29,9 @@
 
   function callGas(action, params) {
     var cfg = ensureConfigured();
-    if (!cfg) return Promise.reject(new Error('GAS接続設定が未入力です'));
+    if (!cfg) return Promise.reject(new Error('合言葉が未入力です'));
     var body = Object.assign({ action: action, token: cfg.token }, params || {});
-    return fetch(cfg.url, {
+    return fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' }, // CORSプリフライト回避
       body: JSON.stringify(body)
