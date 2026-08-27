@@ -4,7 +4,7 @@
   var CFG_KEY = 'gmoKokkaiDb.workerConfig';
   // 実際のGAS URL・SHARED_TOKENはCloudflare Worker側のSecretsに隠蔽されている。
   // フロントはこの固定URLだけを知ればよい（Workerが合言葉を検証してGASに中継する）。
-  var WORKER_URL = 'https://kokkaigiin-kankei-db-proxy.kokkaigiin-worker.workers.dev';
+  var WORKER_URL = 'https://api.policy-office.com';
 
   function getConfig() {
     try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; }
