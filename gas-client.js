@@ -1,6 +1,7 @@
 /* GAS接続クライアント（共通） */
 (function (global) {
-  var CFG_KEY = 'gmoKokkaiDb.gasConfig';
+  // キー名を変更し、旧SHARED_TOKENを保持した端末のキャッシュを無効化して合言葉の再入力を促す
+  var CFG_KEY = 'gmoKokkaiDb.workerConfig';
   // 実際のGAS URL・SHARED_TOKENはCloudflare Worker側のSecretsに隠蔽されている。
   // フロントはこの固定URLだけを知ればよい（Workerが合言葉を検証してGASに中継する）。
   var WORKER_URL = 'https://kokkaigiin-kankei-db-proxy.kokkaigiin-worker.workers.dev';
