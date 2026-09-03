@@ -838,6 +838,7 @@ function renderDossier(){
   document.getElementById('hBadges').innerHTML =
     '<span class="badge b-type">議院：'+(person.house||'不明')+'</span>' +
     '<span class="badge b-cat">政党：'+(person.party||'不明')+'</span>' +
+    (all && all.isCabinetMember ? '<span class="badge b-open">閣僚</span>' : '') +
     (all ? '<span class="badge b-open">Web公開情報：取得済</span>' : (rel ? '<span class="badge">現職サイト：対象外（引退／落選）</span>' : '')) +
     (rel ? '' : '<span class="badge b-muted">関係マスタ：未登録</span>');
 

@@ -265,7 +265,7 @@ var ALL_FIELDS = {
   hostingExpiry: 'ホスティング有効期限', hostingCardExpiry: 'ホスティング決済カード有効期限',
   sslVendor: 'SSLベンダー', sslExpiry: 'SSL有効期限', sslCardExpiry: 'SSL決済カード有効期限',
   siteSeal: 'サイトシール', currentPost: '現職役職',
-  isCurrent: '現職', isDietMember: '国会議員である',
+  isCurrent: '現職', isDietMember: '国会議員である', isCabinetMember: '閣僚',
   relationId: '関係マスタ（重点対象）'
 };
 
@@ -493,7 +493,8 @@ function createNonDietMember(params) {
     '現職役職': { rich_text: [{ text: { content: String(params.currentPost || '') } }] },
     '政党': { rich_text: [{ text: { content: String(params.party || '') } }] },
     '国会議員である': { checkbox: false },
-    '現職': { checkbox: true }
+    '現職': { checkbox: true },
+    '閣僚': { checkbox: true }
   };
 
   var body = { parent: { data_source_id: DATA_SOURCES.legislatorsAll }, properties: properties };
