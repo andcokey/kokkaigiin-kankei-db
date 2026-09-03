@@ -396,6 +396,7 @@
         <div class="field-grid">
           <div class="field-group" id="fgBasic"></div>
           <div class="field-group" id="fgCurrent"></div>
+          <div class="field-group span2 nb-r" id="fgPostHistory"></div>
           <div class="field-group nb-r" id="fgSeminar"></div>
           <div class="field-group" id="fgInternal"></div>
           <div class="field-group span2 nb-r" id="fgLastContact"></div>
@@ -620,6 +621,19 @@ function renderRelationGroup(groupKey, boxId, naHtml){
   }
 }
 
+// 役職履歴（内閣改造等で終了した過去の役職を終了日付きで一覧表示。現職役職欄とは別に、追加分のみここに積み上がる）
+function renderPostHistory(){
+  var box = document.getElementById('fgPostHistory');
+  var all = STATE.activeAllRow;
+  var rows = (STATE.postHistory || []).filter(function(h){ return all && h.allMasterId === all.id; });
+  if (!rows.length) { box.innerHTML = ''; return; }
+  rows.sort(function(a,b){ return (b.startDate || '').localeCompare(a.startDate || ''); });
+  box.innerHTML = '<div class="fg-title">役職履歴</div>' + rows.map(function(h){
+    var period = (h.startDate || '?') + ' 〜 ' + (h.endDate || '現在');
+    return kv(h.role + (h.type ? '（' + h.type + '）' : ''), period);
+  }).join('');
+}
+
 function renderBasicGroup(){
   var rel = STATE.activeRelation;
   var person = STATE.person;
@@ -749,10 +763,11 @@ function showLoadingError(text){
 async function boot(force){
   try {
     setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
-    var lists = await GasClient.fetchLists(['listRelations', 'listAll', 'listContactsAll'], force);
+    var lists = await GasClient.fetchLists(['listRelations', 'listAll', 'listContactsAll', 'listPostHistoryAll'], force);
     var relations = lists.listRelations;
     var allRows = lists.listAll;
     meetingRelationIds = buildMeetingRelationIds(lists.listContactsAll);
+    STATE.postHistory = lists.listPostHistoryAll;
     setLoadingProgress(50);
     STATE.relations = relations;
     STATE.allRows = allRows;
@@ -904,6 +919,7 @@ function renderDossier(){
     ? kv('現職役職', all.currentPost) + '<div class="na-note" style="margin-top:6px;">選挙結果はN/A（関係マスタ未登録）</div>'
     : null;
   renderRelationGroup('current', 'fgCurrent', currentNaHtml);
+  renderPostHistory();
   renderRelationGroup('internal', 'fgInternal');
   renderRelationGroup('sendTo', 'fgSendTo');
   renderRelationGroup('notes', 'fgNotes');

@@ -15,7 +15,8 @@ var DATA_SOURCES = {
   legislatorsAll: '46e6a7a6-899f-4f44-8ec1-818d68ad2626', // 議員マスタ（全体）
   relations:      'd56c2517-9c62-4e5d-978c-1d53c7a9cc21', // 関係マスタ（重点対象）
   contacts:       'd184116b-6236-4f6f-9a47-6c8e992c4e04', // 接触履歴
-  qualityNotes:   'e4135d0e-d92c-4716-8b45-8c307453c63f'  // データ品質メモ
+  qualityNotes:   'e4135d0e-d92c-4716-8b45-8c307453c63f', // データ品質メモ
+  postHistory:    '442174f6-1bf2-44e8-a604-791834bd6884'  // 役職履歴（内閣改造等で旧役職を終了日付きで残す）
 };
 
 function doGet(e) {
@@ -81,6 +82,12 @@ function handle(e) {
         break;
       case 'getNews':
         result = getNews(params);
+        break;
+      case 'listPostHistoryAll':
+        result = listPostHistoryAll(params.force);
+        break;
+      case 'addPostHistory':
+        result = addPostHistory(params);
         break;
       default:
         return jsonOut({ ok: false, error: '不明なaction: ' + action });
@@ -278,6 +285,50 @@ function listLegislatorsAll(force) {
       return row;
     });
   }, force);
+}
+
+/**
+ * 役職履歴（内閣改造・党役員人事等で役職が変わった際、旧役職を終了日付きで残すためのログ）。
+ * 議員マスタ（全体）の現職役職は常に「現在の役職」を上書きする単一の値のまま運用し、
+ * このデータソースは変更履歴のみを保持する（現職役職とは自動連動しない。追加は手動またはaddPostHistory）。
+ */
+var POST_HISTORY_FIELDS = {
+  name: '氏名', role: '役職', startDate: '開始日', endDate: '終了日', type: '種別', allMasterId: '議員マスタ（全体）'
+};
+
+function listPostHistoryAll(force) {
+  return getCachedList('listPostHistoryAll', function () {
+    var pages = notionQueryAll(DATA_SOURCES.postHistory);
+    return pages.map(function (p) {
+      var row = extractPage(p, POST_HISTORY_FIELDS);
+      row.allMasterId = (row.allMasterId && row.allMasterId[0]) || null;
+      return row;
+    });
+  }, force);
+}
+
+/**
+ * 役職履歴を1件追加する。
+ * params: allMasterId(議員マスタ全体のページID), name(氏名), role(役職),
+ *         startDate(開始日, YYYY-MM-DD, optional), endDate(終了日, YYYY-MM-DD, optional=現職),
+ *         type(種別: 閣僚/党役職/その他, optional)
+ */
+function addPostHistory(params) {
+  if (!params.allMasterId) throw new Error('allMasterId が必要です');
+  if (!params.role) throw new Error('role(役職) が必要です');
+  var properties = {
+    '氏名': { title: [{ text: { content: String(params.name || '') } }] },
+    '役職': { rich_text: [{ text: { content: String(params.role) } }] },
+    '議員マスタ（全体）': { relation: [{ id: params.allMasterId }] }
+  };
+  if (params.startDate) properties['開始日'] = { date: { start: params.startDate } };
+  if (params.endDate) properties['終了日'] = { date: { start: params.endDate } };
+  if (params.type) properties['種別'] = { select: { name: params.type } };
+
+  var body = { parent: { data_source_id: DATA_SOURCES.postHistory }, properties: properties };
+  var page = notionFetch('pages', 'post', body);
+  cacheInvalidateList('listPostHistoryAll');
+  return { id: page.id };
 }
 
 var RELATION_FIELDS = {
