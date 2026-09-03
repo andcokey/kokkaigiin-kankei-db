@@ -154,6 +154,9 @@
   .current-only-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
   .current-only-toggle input { width: auto; }
   .filter-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .post-history-list { display: flex; flex-direction: column; gap: 5px; }
+  .post-history-row { font-size: 13px; line-height: 1.5; }
+  .post-history-current { color: var(--accent-strong); font-size: 11.5px; }
   .field-group .fg-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
   .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 13px; }
   .kv .k { color: var(--ink-faint); flex-shrink: 0; }
@@ -396,8 +399,8 @@
         <div class="field-grid">
           <div class="field-group" id="fgBasic"></div>
           <div class="field-group" id="fgCurrent"></div>
-          <div class="field-group span2 nb-r" id="fgPostHistory"></div>
           <div class="field-group nb-r" id="fgSeminar"></div>
+          <div class="field-group span2 nb-r" id="fgPostHistory"></div>
           <div class="field-group" id="fgInternal"></div>
           <div class="field-group span2 nb-r" id="fgLastContact"></div>
           <div class="field-group" id="fgSendTo"></div>
@@ -622,16 +625,21 @@ function renderRelationGroup(groupKey, boxId, naHtml){
 }
 
 // 役職履歴（内閣改造等で終了した過去の役職を終了日付きで一覧表示。現職役職欄とは別に、追加分のみここに積み上がる）
+function fmtHistDate(d){
+  if (!d) return '????/??/??';
+  return d.replace(/-/g, '/');
+}
 function renderPostHistory(){
   var box = document.getElementById('fgPostHistory');
   var all = STATE.activeAllRow;
   var rows = (STATE.postHistory || []).filter(function(h){ return all && h.allMasterId === all.id; });
   if (!rows.length) { box.innerHTML = ''; return; }
   rows.sort(function(a,b){ return (b.startDate || '').localeCompare(a.startDate || ''); });
-  box.innerHTML = '<div class="fg-title">役職履歴</div>' + rows.map(function(h){
-    var period = (h.startDate || '?') + ' 〜 ' + (h.endDate || '現在');
-    return kv(h.role + (h.type ? '（' + h.type + '）' : ''), period);
-  }).join('');
+  box.innerHTML = '<div class="fg-title">役職履歴</div>' +
+    '<div class="post-history-list">' + rows.map(function(h){
+      var line = fmtHistDate(h.startDate) + (h.cabinet ? ' ' + h.cabinet : '') + ' ' + h.role;
+      return '<div class="post-history-row">' + line + (h.endDate ? '' : ' <span class="post-history-current">（現職）</span>') + '</div>';
+    }).join('') + '</div>';
 }
 
 function renderBasicGroup(){

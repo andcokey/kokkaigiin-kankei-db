@@ -293,7 +293,7 @@ function listLegislatorsAll(force) {
  * このデータソースは変更履歴のみを保持する（現職役職とは自動連動しない。追加は手動またはaddPostHistory）。
  */
 var POST_HISTORY_FIELDS = {
-  name: '氏名', role: '役職', startDate: '開始日', endDate: '終了日', type: '種別', allMasterId: '議員マスタ（全体）'
+  name: '氏名', role: '役職', startDate: '開始日', endDate: '終了日', type: '種別', cabinet: '内閣', allMasterId: '議員マスタ（全体）'
 };
 
 function listPostHistoryAll(force) {
@@ -324,6 +324,7 @@ function addPostHistory(params) {
   if (params.startDate) properties['開始日'] = { date: { start: params.startDate } };
   if (params.endDate) properties['終了日'] = { date: { start: params.endDate } };
   if (params.type) properties['種別'] = { select: { name: params.type } };
+  if (params.cabinet) properties['内閣'] = { select: { name: params.cabinet } };
 
   var body = { parent: { data_source_id: DATA_SOURCES.postHistory }, properties: properties };
   var page = notionFetch('pages', 'post', body);
