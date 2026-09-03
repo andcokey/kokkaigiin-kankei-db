@@ -594,6 +594,11 @@ function wireGroupEditActions(fields, box, rerender, onSaved){
 
 function renderRelationGroup(groupKey, boxId, naHtml){
   var rel = STATE.activeRelation;
+  // 「現状」欄は関係マスタのcurrentPostが空なら議員マスタ（全体）の値にフォールバックする
+  // （GAS側のlistRelations統合ロジックと同じ優先順位。関係マスタに未反映の閣僚役職等をここで補う）
+  if (groupKey === 'current' && rel && !rel.currentPost && STATE.activeAllRow && STATE.activeAllRow.currentPost) {
+    rel = Object.assign({}, rel, { currentPost: STATE.activeAllRow.currentPost });
+  }
   var box = document.getElementById(boxId);
   var group = RELATION_FIELD_GROUPS[groupKey];
   if (!rel) {
