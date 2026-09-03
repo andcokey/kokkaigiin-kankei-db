@@ -543,11 +543,11 @@ function createNonDietMember(params) {
   var properties = {
     '氏名': { title: [{ text: { content: String(params.name) } }] },
     '現職役職': { rich_text: [{ text: { content: String(params.currentPost || '') } }] },
-    '政党': { rich_text: [{ text: { content: String(params.party || '') } }] },
     '国会議員である': { checkbox: false },
     '現職': { checkbox: true },
     '閣僚': { checkbox: true }
   };
+  if (params.party) properties['政党'] = { select: { name: String(params.party) } };
 
   var body = { parent: { data_source_id: DATA_SOURCES.legislatorsAll }, properties: properties };
   var page = notionFetch('pages', 'post', body);
