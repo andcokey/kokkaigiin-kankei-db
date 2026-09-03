@@ -151,8 +151,9 @@
   .field-group.nb-r { border-right: none; }
   .field-group.span2 { grid-column: span 2; }
   .field-group.span3 { grid-column: span 3; }
-  .current-only-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+  .current-only-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
   .current-only-toggle input { width: auto; }
+  .filter-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
   .field-group .fg-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
   .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-size: 13px; }
   .kv .k { color: var(--ink-faint); flex-shrink: 0; }
@@ -342,7 +343,11 @@
     <h2 style="margin-bottom:6px; font-size:18px; font-weight:500;">議員を選択してください</h2>
     <div class="sort-hint" style="margin-bottom:12px;">現職国会議員712名全員のページがあります（関係マスタ登録者は接触履歴等も表示されます）</div>
     <input type="text" class="search-input" id="pickSearch" placeholder="氏名・政党・現職役職で検索（例: 外務大臣、自民）" />
-    <label class="current-only-toggle"><input type="checkbox" id="pickCurrentOnly" checked> 現職のみ表示</label>
+    <div class="filter-row">
+      <label class="current-only-toggle"><input type="checkbox" id="pickCurrentOnly" checked> 現職</label>
+      <label class="current-only-toggle"><input type="checkbox" id="pickCabinetOnly"> 閣僚</label>
+      <label class="current-only-toggle"><input type="checkbox" id="pickMeetingOnly"> 面会履歴あり</label>
+    </div>
     <div class="nav-list" id="pickList" style="max-height:60vh; margin-top:10px;"></div>
   </div>
   <div id="appRoot" class="layout" style="display:none;">
@@ -355,7 +360,11 @@
         <option value="kana">五十音順</option>
       </select>
       <input type="text" class="search-input" id="sidebarSearch" placeholder="氏名・政党・現職役職で検索" />
-      <label class="current-only-toggle"><input type="checkbox" id="sidebarCurrentOnly" checked> 現職のみ表示</label>
+      <div class="filter-row">
+        <label class="current-only-toggle"><input type="checkbox" id="sidebarCurrentOnly" checked> 現職</label>
+        <label class="current-only-toggle"><input type="checkbox" id="sidebarCabinetOnly"> 閣僚</label>
+        <label class="current-only-toggle"><input type="checkbox" id="sidebarMeetingOnly"> 面会履歴あり</label>
+      </div>
       <div class="sort-hint" id="sortHint"></div>
       <div class="nav-list" id="navList"></div>
       <div class="note">接触履歴等が表示されるのは「関係マスタ」に登録された議員のみです。それ以外はドメイン/サーバー/SSL情報のみ表示されます。</div>
@@ -683,6 +692,14 @@ function resolvePerson(idParam, relations, allRows){
   return { rel: rel, all: all };
 }
 
+// 接触履歴（面談）を持つ関係マスタページIDの集合。boot/renderPickerでlistContactsAll取得後にセットされる。
+var meetingRelationIds = new Set();
+function buildMeetingRelationIds(contactsAll){
+  var ids = new Set();
+  (contactsAll || []).forEach(function(c){ if (c.type === '面談' && c.relationId) ids.add(c.relationId); });
+  return ids;
+}
+
 // サイドバー・選択画面用の統合リスト（議員マスタ全体712名＋関係マスタのみ登録の2名）
 function buildUnifiedList(){
   var relByAllId = {};
@@ -691,10 +708,17 @@ function buildUnifiedList(){
   var list = STATE.allRows.map(function(r){
     var rel = relByAllId[r.id];
     var post = r.currentPost || (rel ? rel.currentPost : '') || '';
-    return { linkId: r.id, name: r.name, party: r.party, house: r.house, district: r.district, kana: r.kana || '', post: post, isCurrent: r.isCurrent !== false };
+    return {
+      linkId: r.id, name: r.name, party: r.party, house: r.house, district: r.district, kana: r.kana || '', post: post,
+      isCurrent: r.isCurrent !== false, isCabinetMember: !!r.isCabinetMember,
+      hasMeeting: !!(rel && meetingRelationIds.has(rel.id))
+    };
   });
   STATE.relations.forEach(function(r){
-    if (!r.allMasterId) list.push({ linkId: r.legislatorId, name: r.name, party: r.party, house: r.house, district: r.district, kana: '', post: r.currentPost || '', isCurrent: false });
+    if (!r.allMasterId) list.push({
+      linkId: r.legislatorId, name: r.name, party: r.party, house: r.house, district: r.district, kana: '', post: r.currentPost || '',
+      isCurrent: false, isCabinetMember: false, hasMeeting: meetingRelationIds.has(r.id)
+    });
   });
   return list;
 }
@@ -720,9 +744,10 @@ function showLoadingError(text){
 async function boot(force){
   try {
     setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
-    var lists = await GasClient.fetchLists(['listRelations', 'listAll'], force);
+    var lists = await GasClient.fetchLists(['listRelations', 'listAll', 'listContactsAll'], force);
     var relations = lists.listRelations;
     var allRows = lists.listAll;
+    meetingRelationIds = buildMeetingRelationIds(lists.listContactsAll);
     setLoadingProgress(50);
     STATE.relations = relations;
     STATE.allRows = allRows;
@@ -784,6 +809,8 @@ function renderSidebar(mode){
   var list = STATE.unified.slice();
   if (mode === 'party') list = list.filter(function(r){ return normParty(r.party) === normParty(person.party); });
   if (document.getElementById('sidebarCurrentOnly').checked) list = list.filter(function(r){ return r.isCurrent; });
+  if (document.getElementById('sidebarCabinetOnly').checked) list = list.filter(function(r){ return r.isCabinetMember; });
+  if (document.getElementById('sidebarMeetingOnly').checked) list = list.filter(function(r){ return r.hasMeeting; });
   var q = (document.getElementById('sidebarSearch').value || '').trim();
   if (q) list = list.filter(function(r){ return matchesQuery(r, q); });
   list.sort(function(a,b){ return (a.kana || a.name).localeCompare(b.kana || b.name, 'ja'); });
@@ -805,6 +832,8 @@ function renderSidebar(mode){
 document.getElementById('sidebarSort').addEventListener('change', function(e){ renderSidebar(e.target.value); });
 document.getElementById('sidebarSearch').addEventListener('input', function(){ renderSidebar(STATE.sidebarMode); });
 document.getElementById('sidebarCurrentOnly').addEventListener('change', function(){ renderSidebar(STATE.sidebarMode); });
+document.getElementById('sidebarCabinetOnly').addEventListener('change', function(){ renderSidebar(STATE.sidebarMode); });
+document.getElementById('sidebarMeetingOnly').addEventListener('change', function(){ renderSidebar(STATE.sidebarMode); });
 
 function openSidebarDrawer(){
   document.getElementById('sidebarPanel').classList.add('open');
@@ -1229,6 +1258,8 @@ var pickerList = [];
 function renderPickerList(){
   var list = pickerList;
   if (document.getElementById('pickCurrentOnly').checked) list = list.filter(function(r){ return r.isCurrent; });
+  if (document.getElementById('pickCabinetOnly').checked) list = list.filter(function(r){ return r.isCabinetMember; });
+  if (document.getElementById('pickMeetingOnly').checked) list = list.filter(function(r){ return r.hasMeeting; });
   var q = (document.getElementById('pickSearch').value || '').trim();
   if (q) list = list.filter(function(r){ return matchesQuery(r, q); });
   document.getElementById('pickList').innerHTML = list.map(function(r){
@@ -1243,9 +1274,10 @@ function renderPickerList(){
 async function renderPicker(force){
   try {
     setLoadingProgress(0, force ? '最新データを取得中…' : '読み込み中…（議員一覧を取得）');
-    var lists = await GasClient.fetchLists(['listRelations', 'listAll'], force);
+    var lists = await GasClient.fetchLists(['listRelations', 'listAll', 'listContactsAll'], force);
     var relations = lists.listRelations;
     var allRows = lists.listAll;
+    meetingRelationIds = buildMeetingRelationIds(lists.listContactsAll);
     setLoadingProgress(100);
     STATE.relations = relations;
     STATE.allRows = allRows;
@@ -1257,6 +1289,8 @@ async function renderPicker(force){
     if (!pickerSearchBound) {
       document.getElementById('pickSearch').addEventListener('input', renderPickerList);
       document.getElementById('pickCurrentOnly').addEventListener('change', renderPickerList);
+      document.getElementById('pickCabinetOnly').addEventListener('change', renderPickerList);
+      document.getElementById('pickMeetingOnly').addEventListener('change', renderPickerList);
       pickerSearchBound = true;
     }
   } catch (err) {
